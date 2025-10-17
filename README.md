@@ -198,7 +198,7 @@ npm run server:dev
 
 本项目受以下项目启发并与之兼容：
 
-- [sconn_clienth](https://github.com/lvzixun/sconn_clienth) - 原始 C 语言实现
+- [sconn_client](https://github.com/lvzixun/sconn_client) - 原始 C 语言实现
 - [goscon](https://github.com/hanxi/goscon) - Go 语言服务器实现
 
 ## 浏览器兼容性
