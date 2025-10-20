@@ -154,7 +154,7 @@ class WSConnection {
         error: checkResult.error
       };
     }
-    
+
     const msg = this.vRecvBuf.popAll();
     if (!msg) {
       return {
@@ -271,10 +271,10 @@ class ExtendedWSConnection extends WSConnection implements IWSConnection {
   popMsg(headerLen: number = 2, endian: string = "big"): string | null {
     const oldHeaderLen = this.vRecvBuf.headerLen;
     const oldEndian = this.vRecvBuf.headerEndian;
-    
+
     this.vRecvBuf.setHeader(headerLen, endian);
     const result = this.vRecvBuf.popMsg();
-    
+
     this.vRecvBuf.setHeader(oldHeaderLen, oldEndian);
     return result;
   }
@@ -325,7 +325,7 @@ class ExtendedWSConnection extends WSConnection implements IWSConnection {
         status: "close"
       };
     }
-    
+
     if (this.socketError) {
       if (this.websocket.readyState === WebSocket.CLOSED) {
         return {
@@ -340,7 +340,7 @@ class ExtendedWSConnection extends WSConnection implements IWSConnection {
         status: this.vState.name
       };
     }
-    
+
     return {
       success: true,
       status: this.vState.name
@@ -354,15 +354,15 @@ class ExtendedWSConnection extends WSConnection implements IWSConnection {
     try {
       this.close();
       const newWs = new WebSocket(url);
-      
+
       // 替换WebSocket实例
       this.websocket = newWs;
       this.vState = stateConnect;
       this.socketError = null;
       this.url = url;
-      
+
       this.registerCallback();
-      
+
       return { success: true };
     } catch (error) {
       return {
@@ -390,7 +390,7 @@ export class WSClient {
   static new(url: string): ExtendedWSConnection | null {
     try {
       const ws = new WebSocket(url);
-      
+
       if (!ws) {
         return null;
       }
@@ -420,17 +420,6 @@ export function connect(url: string): ConnectionResult {
   return { connection: conn };
 }
 
-/**
- * LBuffer模块
- */
-export class LBufferModule {
-  /**
-   * 创建LBuffer实例
-   */
-  static create(headerLen?: number, headerEndian?: string): Buffer {
-    return Buffer.create(headerLen, headerEndian);
-  }
-}
 
 export { WSConnection };
 export default WSClient;

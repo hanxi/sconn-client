@@ -102,7 +102,7 @@ class WSTestServer {
 
     // 解析头部（2字节，big endian）
     const contentLen = (data[0] << 8) | data[1];
-    const content = data.slice(2, 2 + contentLen).toString();
+    const content = data.subarray(2, 2 + contentLen).toString();
     
     console.log(`客户端 ${session.id} 发送打包消息: ${content}`);
 

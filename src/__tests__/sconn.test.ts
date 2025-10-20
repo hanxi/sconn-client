@@ -2,7 +2,7 @@
  * sconn.ts 测试用例
  */
 
-import { SConn, connectHostSConn, Cache } from '../sconn';
+import { SConn, connect, Cache } from '../sconn';
 import { WSClient, type IWSConnection } from '../conn';
 
 // Mock IWSConnection
@@ -284,7 +284,7 @@ describe('SConn', () => {
   });
 });
 
-describe('connectHostSConn', () => {
+describe('connect', () => {
   // Mock WSClient.new
   const originalNew = WSClient.new;
   
@@ -299,7 +299,7 @@ describe('connectHostSConn', () => {
   });
 
   it('应该成功创建SConn连接', () => {
-    const connectResult = connectHostSConn('ws://localhost:8080');
+    const connectResult = connect('ws://localhost:8080');
     
     expect(connectResult.connection).toBeInstanceOf(SConn);
     expect(connectResult.error).toBeUndefined();
@@ -307,18 +307,20 @@ describe('connectHostSConn', () => {
   });
 
   it('应该处理连接失败', () => {
+    // 重新设置 mock 来模拟连接失败
     WSClient.new = jest.fn().mockReturnValue(null);
     
-    const connectResult = connectHostSConn('ws://invalid-host:8080');
+    const connectResult = connect('ws://invalid-host:8080');
     
     expect(connectResult.connection).toBeNull();
-    expect(connectResult.error).toBeDefined();
+    expect(connectResult.error).toBe('connection_failed');
   });
 
   it('应该传递目标服务器参数', () => {
-    const connectResult = connectHostSConn('ws://localhost:8080');
+    const connectResult = connect('ws://localhost:8080', 'test-server', 1);
     
     expect(connectResult.connection).toBeInstanceOf(SConn);
     expect(connectResult.connection?.curState()).toBe('newconnect');
+    expect(connectResult.error).toBeUndefined();
   });
 });

@@ -5,7 +5,7 @@
  * 支持状态机管理、断线重连和数据缓存的WebSocket客户端
  */
 
-import { SConn, connectHostSConn } from '../src/sconn';
+import { SConn, connect } from '../src/sconn';
 
 class SConnExample {
   private sconn: SConn | null = null;
@@ -23,7 +23,7 @@ class SConnExample {
       console.log(`目标服务器: ${targetServer}`);
     }
 
-    const connectResult = connectHostSConn(url, targetServer);
+    const connectResult = connect(url, targetServer);
     
     if (!connectResult.connection || connectResult.error) {
       console.error(`连接失败: ${connectResult.error}`);

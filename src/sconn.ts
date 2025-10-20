@@ -3,7 +3,7 @@
  * 基于状态机的WebSocket连接，支持断线重连和数据缓存
  */
 
-import { connect, IWSConnection } from './conn';
+import { connect as connectWS, IWSConnection } from './conn';
 import { Buffer } from './buffer';
 
 const CACHE_MAX_COUNT = 100;
@@ -860,8 +860,8 @@ export class SConn {
 /**
  * 连接主机
  */
-export function connectHostSConn(url: string, targetServer?: string, flag?: number): ConnectResult {
-  const connectResult = connect(url);
+export function connect(url: string, targetServer?: string, flag?: number): ConnectResult {
+  const connectResult = connectWS(url);
   if (!connectResult.connection) {
     return {
       connection: null,

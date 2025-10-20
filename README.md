@@ -16,7 +16,7 @@
 ## 安装
 
 ```bash
-npm install sconn-client
+bun add sconn-client
 ```
 
 ## 快速开始
@@ -44,10 +44,10 @@ if (result.connection) {
 ### 带状态管理的 SConn
 
 ```typescript
-import { connectHostSConn } from 'sconn-client';
+import { connect } from 'sconn-client';
 
 // 创建带状态管理的 SConn 连接
-const result = connectHostSConn('ws://localhost:8080', 'target-server', 0);
+const result = connect('ws://localhost:8080', 'target-server', 0);
 if (result.connection) {
   const sconn = result.connection;
   
@@ -76,7 +76,7 @@ if (result.connection) {
 - `url`: WebSocket 服务器 URL
 - 返回: `{ connection: IWSConnection | null, error?: string }`
 
-#### `connectHostSConn(url: string, targetServer?: string, flag?: number): ConnectResult`
+#### `connect(url: string, targetServer?: string, flag?: number): ConnectResult`
 
 创建具有高级功能的 SConn 连接。
 
@@ -150,19 +150,19 @@ sconn.sendMsg('data', 4, 'big'); // 4 字节包头，大端序
 运行测试套件：
 
 ```bash
-npm test
+bun test
 ```
 
 运行带覆盖率的测试：
 
 ```bash
-npm run test:coverage
+bun run test:coverage
 ```
 
 监视模式运行测试：
 
 ```bash
-npm run test:watch
+bun run test:watch
 ```
 
 ## 示例
@@ -170,8 +170,8 @@ npm run test:watch
 查看 `examples/` 目录获取完整的使用示例：
 
 ```bash
-npm run example:conn    # 基础连接示例
-npm run example:sconn   # 带状态管理的 SConn 示例
+bun run example:conn    # 基础连接示例
+bun run example:sconn   # 带状态管理的 SConn 示例
 ```
 
 ## 开发
@@ -179,19 +179,19 @@ npm run example:sconn   # 带状态管理的 SConn 示例
 ### 构建
 
 ```bash
-npm run build
+bun run build
 ```
 
 ### 类型检查
 
 ```bash
-npm run type-check
+bun run type-check
 ```
 
 ### 开发服务器
 
 ```bash
-npm run server:dev
+bun run server:dev
 ```
 
 ## 相关项目

@@ -14,7 +14,8 @@
     "server": "bun run test-server.ts",
     "server:dev": "bun --watch test-server.ts",
     "example:conn": "bun run examples/conn-example.ts",
-    "example:sconn": "bun run examples/sconn-example.ts"
+    "example:sconn": "bun run examples/sconn-example.ts",
+    "example:network": "bun run examples/network-example.ts"
   },
   "keywords": [
     "websocket",
@@ -25,6 +26,8 @@
   "author": "涵曦",
   "license": "MIT",
   "dependencies": {
+    "@imhanxi/sproto-js": "^0.1.1",
+    "@types/buffers": "^0.1.34",
     "ws": "^8.14.2"
   },
   "devDependencies": {

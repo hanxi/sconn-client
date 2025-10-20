@@ -8,7 +8,10 @@
 export { Buffer, endianFormat } from './buffer';
 
 // 导出基础WebSocket连接类
-export { WSClient, WSConnection, connect, type IWSConnection } from './conn';
+export { WSClient, WSConnection, connect as connConnect, type IWSConnection } from './conn';
 
 // 导出高级状态机连接类
-export { SConn, connectHostSConn, Cache } from './sconn';
+export { SConn, connect as sconnConnect, Cache } from './sconn';
+
+// 导出Network类
+export { Network } from './network';
