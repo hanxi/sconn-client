@@ -213,9 +213,12 @@ class WSConnection {
       this.vRecvBuf.push(event.data);
     };
 
-    this.websocket.onclose = () => {
+    this.websocket.onclose = (event) => {
       this.vState = stateClose;
       this.log("websocket close");
+      console.log("code:", event.code);
+      console.log("reason:", event.reason);
+      console.log("wasClean:", event.wasClean);
     };
 
     this.websocket.onerror = () => {
