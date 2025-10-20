@@ -1,5 +1,5 @@
 /**
- * Buffer缓冲区类
+ * Buffer缓冲区类（基于Uint8Array）
  */
 
 export const endianFormat = {
@@ -11,10 +11,10 @@ const DEFAULT_HEADER_LENGTH = 2;
 const DEFAULT_HEADER_ENDIAN = "big";
 
 /**
- * 缓冲区类
+ * 缓冲区类（处理Uint8Array二进制数据）
  */
 export class Buffer {
-  private data: string[] = [];
+  private data: Uint8Array[] = [];
   public headerLen: number = DEFAULT_HEADER_LENGTH;
   public headerEndian: string = DEFAULT_HEADER_ENDIAN;
 
@@ -34,27 +34,46 @@ export class Buffer {
   }
 
   /**
-   * 根据设置的header编码格式，编码sz
+   * 根据设置的header编码格式，编码长度
    */
-  packHeader(sz: number): string {
-    const hex = sz.toString(16).padStart(this.headerLen * 2, '0');
-    return String.fromCharCode(...hex.match(/.{2}/g)!.map(byte => parseInt(byte, 16)));
+  packHeader(sz: number): Uint8Array {
+    const header = new Uint8Array(this.headerLen);
+    if (this.headerEndian === 'big') {
+      // 大端模式：高位在前
+      for (let i = 0; i < this.headerLen; i++) {
+        const shift = (this.headerLen - 1 - i) * 8;
+        header[i] = (sz >>> shift) & 0xFF;
+      }
+    } else {
+      // 小端模式：低位在前
+      for (let i = 0; i < this.headerLen; i++) {
+        const shift = i * 8;
+        header[i] = (sz >>> shift) & 0xFF;
+      }
+    }
+    return header;
   }
 
   /**
-   * 添加字符串到缓冲区
+   * 添加Uint8Array数据到缓冲区
    */
-  push(str: string): void {
-    this.data.push(str);
+  push(arr: Uint8Array): void {
+    this.data.push(arr);
   }
 
-
-
   /**
-   * 弹出所有数据
+   * 弹出所有数据（合并为单个Uint8Array）
    */
-  popAll(): string {
-    const result = this.data.join('');
+  popAll(): Uint8Array {
+    // 计算总长度
+    const totalLength = this.getSize();
+    const result = new Uint8Array(totalLength);
+    let offset = 0;
+    // 合并所有数组
+    for (const arr of this.data) {
+      result.set(arr, offset);
+      offset += arr.length;
+    }
     this.data = [];
     return result;
   }
@@ -62,44 +81,61 @@ export class Buffer {
   /**
    * 添加消息（包含header）
    */
-  pushMsg(str: string): void {
-    const len = str.length;
+  pushMsg(data: Uint8Array): void {
+    const len = data.length;
     const header = this.packHeader(len);
-    this.push(header + str);
+    // 合并header和数据并添加到缓冲区
+    const message = new Uint8Array(header.length + data.length);
+    message.set(header);
+    message.set(data, header.length);
+    this.push(message);
   }
 
   /**
    * 根据包头信息弹出一段消息
    */
-  popMsg(): string | null {
-    const current = this.data.join('');
-    if (current.length < this.headerLen) return null;
-    
-    const headerBytes = current.slice(0, this.headerLen);
+  popMsg(): Uint8Array | null {
+    const current = this.popAll(); // 先合并所有数据
+    if (current.length < this.headerLen) {
+      // 数据不足包头长度，放回缓冲区
+      if (current.length > 0) this.data.push(current);
+      return null;
+    }
+
+    // 解析包头
     let sz = 0;
-    
+    const header = current.subarray(0, this.headerLen);
     if (this.headerEndian === 'big') {
-      for (let i = 0; i < headerBytes.length; i++) {
-        sz = (sz << 8) + headerBytes.charCodeAt(i);
+      for (let i = 0; i < this.headerLen; i++) {
+        sz = (sz << 8) + header[i];
       }
     } else {
-      for (let i = 0; i < headerBytes.length; i++) {
-        sz += headerBytes.charCodeAt(i) << (i * 8);
+      for (let i = 0; i < this.headerLen; i++) {
+        sz += header[i] << (i * 8);
       }
     }
-    
-    if (current.length < this.headerLen + sz) return null;
-    
-    const message = current.slice(this.headerLen, this.headerLen + sz);
-    const remaining = current.slice(this.headerLen + sz);
-    this.data = remaining ? [remaining] : [];
+
+    // 检查数据是否足够
+    const totalNeeded = this.headerLen + sz;
+    if (current.length < totalNeeded) {
+      // 数据不足，放回缓冲区
+      this.data.push(current);
+      return null;
+    }
+
+    // 提取消息和剩余数据
+    const message = current.subarray(this.headerLen, totalNeeded);
+    const remaining = current.subarray(totalNeeded);
+    if (remaining.length > 0) {
+      this.data.push(remaining);
+    }
     return message;
   }
 
   /**
    * 弹出所有消息到数组
    */
-  popAllMsg(out: string[]): number {
+  popAllMsg(out: Uint8Array[]): number {
     let count = 0;
     let msg = this.popMsg();
     while (msg !== null) {
@@ -110,13 +146,11 @@ export class Buffer {
     return count;
   }
 
-
-
   /**
    * 获取缓冲区大小
    */
   getSize(): number {
-    return this.data.reduce((sum, str) => sum + str.length, 0);
+    return this.data.reduce((sum, arr) => sum + arr.length, 0);
   }
 
   /**
@@ -125,7 +159,6 @@ export class Buffer {
   clear(): void {
     this.data = [];
   }
-
 
   /**
    * 静态创建方法

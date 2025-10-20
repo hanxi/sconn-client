@@ -117,7 +117,7 @@ class CryptUtils {
       0xF4292244, 0x432AFF97, 0xAB9423A7, 0xFC93A039, 0x655B59C3, 0x8F0CCC92, 0xFFEFF47D, 0x85845DD1,
       0x6FA87E4F, 0xFE2CE6E0, 0xA3014314, 0x4E0811A1, 0xF7537E82, 0xBD3AF235, 0x2AD7D2BB, 0xEB86D391
     ];
-    
+
     const s = [
       7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22,
       5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20,
@@ -130,7 +130,7 @@ class CryptUtils {
     const paddedData = new Uint8Array(Math.ceil((originalLength + 9) / 64) * 64);
     paddedData.set(data);
     paddedData[originalLength] = 0x80;
-    
+
     // 添加长度信息
     const lengthInBits = originalLength * 8;
     const view = new DataView(paddedData.buffer);
@@ -243,10 +243,10 @@ class CryptUtils {
  */
 function formatLog(level: string, component: string, message: string, data?: any): void {
   if (!VERBOSE) return;
-  
+
   const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 23);
   const baseMessage = `[${timestamp}] [${level}] [${component}] ${message}`;
-  
+
   if (data !== undefined) {
     if (typeof data === 'object') {
       console.log(`${baseMessage}`, JSON.stringify(data));
@@ -306,7 +306,7 @@ class Cache {
     this.top = this.top + 1;
     this.cache[this.top] = data;
     this.size = this.size + data.length;
-    
+
     const removeKey = this.top - CACHE_MAX_COUNT;
     const removeCacheValue = this.cache[removeKey];
     if (removeCacheValue !== undefined) {
@@ -326,22 +326,22 @@ class Cache {
     let i = this.top;
     let count = 0;
     const ret: string[] = [];
-    
+
     while (count < nbytes) {
       const v = this.cache[i];
       if (!v) break;
-      
+
       const len = v.length;
       let n = len;
       let vv = v;
-      
+
       if (count + len > nbytes) {
         const subN = nbytes - count;
         const pos = len - subN;
         vv = v.substring(pos);
         n = subN;
       }
-      
+
       ret.unshift(vv);
       count = count + n;
       i = i - 1;
@@ -363,21 +363,30 @@ class Cache {
 /**
  * 打包数据函数
  */
-function packData(data: string, headerLen: number, endian: string): string {
-  const len = data.length;
-  let header = '';
-  
+function packData(data: string, headerLen: number, endian: 'big' | 'little'): Uint8Array {
+  // 将字符串转换为 UTF-8 字节
+  const textEncoder = new TextEncoder();
+  const dataBytes = textEncoder.encode(data);
+  const len = dataBytes.length;
+
+  // 创建头部字节数组
+  const header = new Uint8Array(headerLen);
   if (endian === 'big') {
-    for (let i = headerLen - 1; i >= 0; i--) {
-      header += String.fromCharCode((len >> (i * 8)) & 0xFF);
+    for (let i = 0; i < headerLen; i++) {
+      header[headerLen - 1 - i] = (len >> (i * 8)) & 0xFF;
     }
   } else {
     for (let i = 0; i < headerLen; i++) {
-      header += String.fromCharCode((len >> (i * 8)) & 0xFF);
+      header[i] = (len >> (i * 8)) & 0xFF;
     }
   }
-  
-  return header + data;
+
+  // 合并 header + data
+  const result = new Uint8Array(headerLen + len);
+  result.set(header, 0);
+  result.set(dataBytes, headerLen);
+
+  return result;
 }
 
 /**
@@ -415,45 +424,45 @@ function disposeError(self: SConn, success: boolean, err?: string, status?: stri
 const states: { [key: string]: IState } = {
   newconnect: {
     name: "newconnect",
-    request: async (self: SConn, targetServer?: string, flag?: number, acceptEncodings?: string) => {
+    request: async (self: SConn, targetServer?: string, flag?: number) => {
       // 实现完整的DH密钥交换
       targetServer = targetServer || "";
       flag = flag || 0;
-      
+
       // 生成客户端DH私钥和公钥
       const privateKey = CryptUtils.generateRandomKey();
       const dhPublicKey = CryptUtils.dhExchange(privateKey);
-      
+
       // 构建连接请求：0\nbase64(DH_key)\nTargetServer\nflag\nAcceptEncodings
       let data = `0\n${CryptUtils.base64Encode(dhPublicKey)}\n${targetServer}\n${flag}`;
-      if (acceptEncodings) {
-        data += `\n${acceptEncodings}`;
-      }
-      
+
       const packedData = packData(data, 2, "big");
-      
+
       self.vSock.send(packedData);
       self.vPrivateKey = privateKey;
-      log.debug("sending connection request with DH key exchange", { dataLength: packedData.length });
+      console.log("fuck1", packedData)
+      // log.debug("sending connection request with DH key exchange", packedData);
       self.vSendBufTop = 0;
     },
-    
+
     send: (self: SConn, data: string) => {
       self.vSendBufTop = self.vSendBufTop + 1;
       self.vSendBuf[self.vSendBufTop] = data;
     },
-    
+
     dispatch: async (self: SConn) => {
       const data = self.vSock.popMsg(2, "big");
       if (!data) return;
-      
-      log.debug("received connection response", { data: data.substring(0, 100) + (data.length > 100 ? '...' : '') });
-      const lines = data.split('\n');
+
+      log.debug("received connection response", data);
+      const decoder = new TextDecoder('utf-8');
+      const str = decoder.decode(data);
+      const lines = str.split('\n');
       const id = lines[0];
       const serverKeyB64 = lines[1];
-      
+
       self.vId = parseInt(id) || 0;
-      
+
       // 计算共享密钥
       if (serverKeyB64 && self.vPrivateKey) {
         const serverPublicKey = CryptUtils.base64Decode(serverKeyB64);
@@ -472,7 +481,7 @@ const states: { [key: string]: IState } = {
       self.vSendBufTop = 0;
       self.vSendBuf = {};
     },
-    
+
     dispose: (self: SConn, success: boolean, err?: string, status?: string): StateDisposeResult => {
       if (success) {
         return {
@@ -494,51 +503,49 @@ const states: { [key: string]: IState } = {
     name: "reconnect",
     request: async (self: SConn) => {
       self.vReconnectIndex = self.vReconnectIndex + 1;
-      
+
       // 构建重连请求内容：id\nindex\nrecvnumber\nbase64(HMAC_CODE)
       const content = `${self.vId}\n${self.vReconnectIndex}\n${self.vRecvNumber}\n`;
-      
+
       let data = content;
-      
+
       // 如果有共享密钥，计算HMAC验证码
-      if (self.vSecret) {
-        const contentHash = CryptUtils.hashKey(content);
-        const hmac = CryptUtils.hmacMd5(self.vSecret, contentHash);
-        const hmacB64 = CryptUtils.base64Encode(hmac);
-        data = `${content}${hmacB64}\n`;
-      } else {
-        data = content + "\n"; // 简化版本，不使用HMAC
-      }
-      
+      const contentHash = CryptUtils.hashKey(content);
+      const hmac = CryptUtils.hmacMd5(self.vSecret, contentHash);
+      const hmacB64 = CryptUtils.base64Encode(hmac);
+      data = `${content}${hmacB64}\n`;
+
       const packedData = packData(data, 2, "big");
-      
-      log.debug("sending reconnect request", { 
-        reconnectIndex: self.vReconnectIndex, 
+
+      log.debug("sending reconnect request", {
+        reconnectIndex: self.vReconnectIndex,
         recvNumber: self.vRecvNumber,
         hasHmac: !!self.vSecret
       });
       self.vSock.send(packedData);
     },
-    
+
     send: (self: SConn, data: string) => {
       // 在断线重连期间，仅仅是把数据插入到cache中
       self.vSendNumber = self.vSendNumber + data.length;
       self.vCache.insert(data);
     },
-    
+
     dispatch: (self: SConn) => {
       const data = self.vSock.popMsg(2, "big");
       if (!data) return;
-      
-      log.debug("received reconnect response", { recv: parseInt(data.split('\n')[0]) || 0, msg: data.split('\n')[1] });
-      const lines = data.split('\n');
+
+      log.debug("received reconnect response", data);
+      const decoder = new TextDecoder('utf-8');
+      const str = decoder.decode(data);
+      const lines = str.split('\n');
       const recv = parseInt(lines[0]) || 0;
       const msg = lines[1];
-      
+
       const sendNumber = self.vSendNumber;
       const cb = self.vReconnectCb;
       self.vReconnectCb = undefined;
-      
+
       // 重连失败
       if (msg !== "200") {
         log.warn("reconnect failed", { message: msg });
@@ -546,35 +553,35 @@ const states: { [key: string]: IState } = {
         switchState(self, "reconnect_error");
         return;
       }
-      
+
       // 服务器接受的数据要比客户端记录的发送的数据还要多
       if (recv > sendNumber) {
         if (cb) cb(false);
         switchState(self, "reconnect_match_error");
         return;
       }
-      
+
       // 需要补发的数据
       if (recv < sendNumber) {
         const nbytes = sendNumber - recv;
         const resendData = self.vCache.get(nbytes);
-        
+
         // 缓存的数据不足
         if (!resendData) {
           if (cb) cb(false);
           switchState(self, "reconnect_cache_error");
           return;
         }
-        
+
         // 发送补发数据
         self.vSock.send(resendData);
       }
-      
+
       // 重连成功
       if (cb) cb(true);
       switchState(self, "forward");
     },
-    
+
     dispose: (self: SConn, success: boolean, err?: string, status?: string): StateDisposeResult => {
       if (success) {
         return {
@@ -597,25 +604,25 @@ const states: { [key: string]: IState } = {
     dispatch: (self: SConn) => {
       const recvBuf = self.vRecvBuf;
       const sock = self.vSock;
-      const out: string[] = [];
+      const out: Uint8Array[] = [];
       const count = sock.recv(out);
-      
+
       for (let i = 0; i < count; i++) {
         const v = out[i];
         self.vRecvNumber = self.vRecvNumber + v.length;
         recvBuf.push(v);
       }
     },
-    
-    send: (self: SConn, data: string) => {
+
+    send: (self: SConn, data: Uint8Array) => {
       const sock = self.vSock;
       const cache = self.vCache;
-      
+
       sock.send(data);
       self.vSendNumber = self.vSendNumber + data.length;
       cache.insert(data);
     },
-    
+
     dispose: (self: SConn, success: boolean, err?: string, status?: string): StateDisposeResult => {
       if (success) {
         if (status !== "forward") {
@@ -676,10 +683,10 @@ function switchState(self: SConn, stateName: string, ...args: any[]): void {
   if (!state) {
     throw new Error(`Invalid state: ${stateName}`);
   }
-  
+
   log.debug("switching state", { from: self.vState.name, to: stateName, args });
   self.vState = state;
-  
+
   if (state.request) {
     // 异步调用request函数，但不等待结果
     Promise.resolve(state.request(self, ...args)).catch(error => {
@@ -699,11 +706,11 @@ export class SConn {
   public vRecvNumber: number = 0;
   public vReconnectIndex: number = 0;
   public vCache: Cache = new Cache();
-  public vSendBuf: { [key: number]: string } = {};
+  public vSendBuf: { [key: number]: Uint8Array } = {};
   public vSendBufTop: number = 0;
   public vRecvBuf: Buffer = Buffer.create();
   public vReconnectCb?: (success: boolean) => void;
-  
+
   // 新增加密相关字段
   public vPrivateKey?: Uint8Array;
   public vSecret: Uint8Array;
@@ -734,7 +741,7 @@ export class SConn {
     }
 
     const url = this.vSock.url;
-    
+
     if (!url) {
       return {
         success: false,
@@ -769,17 +776,17 @@ export class SConn {
     const sock = this.vSock;
     const state = this.vState;
     const updateResult = sock.update();
-    
+
     if (updateResult.success && state.dispatch) {
       state.dispatch(this);
     }
 
     // 网络连接主动断开
     if (updateResult.status === "connect_break") {
-      return { 
-        success: updateResult.success, 
-        error: updateResult.error, 
-        status: updateResult.status 
+      return {
+        success: updateResult.success,
+        error: updateResult.error,
+        status: updateResult.status
       };
     }
 
@@ -787,18 +794,18 @@ export class SConn {
     if (state.dispose) {
       return state.dispose(this, updateResult.success, updateResult.error, updateResult.status);
     }
-    
-    return { 
-      success: updateResult.success, 
-      error: updateResult.error, 
-      status: updateResult.status 
+
+    return {
+      success: updateResult.success,
+      error: updateResult.error,
+      status: updateResult.status
     };
   }
 
   /**
    * 发送数据
    */
-  send(data: string): boolean {
+  send(data: Uint8Array): boolean {
     const sendFn = this.vState.send;
     if (sendFn) {
       sendFn(this, data);
@@ -809,7 +816,7 @@ export class SConn {
   /**
    * 发送消息（带包头）
    */
-  sendMsg(data: string, headerLen?: number, endian?: string): boolean {
+  sendMsg(data: Uint8Array, headerLen?: number, endian?: string): boolean {
     const sendFn = this.vState.send;
     headerLen = headerLen || DEF_MSG_HEADER_LEN;
     endian = endian || DEF_MSG_ENDIAN;
@@ -824,7 +831,7 @@ export class SConn {
   /**
    * 接收数据
    */
-  recv(out: string[]): number {
+  recv(out: Uint8Array[]): number {
     const recvBuf = this.vRecvBuf;
     return recvBuf.popAllMsg(out);
   }
@@ -832,18 +839,18 @@ export class SConn {
   /**
    * 接收消息
    */
-  recvMsg(outMsg: string[], headerLen?: number, endian?: string): number {
+  recvMsg(outMsg: Uint8Array[], headerLen?: number, endian?: string): number {
     headerLen = headerLen || DEF_MSG_HEADER_LEN;
     endian = endian || DEF_MSG_ENDIAN;
 
     const recvBuf = this.vRecvBuf;
     const oldHeaderLen = recvBuf.headerLen;
     const oldEndian = recvBuf.headerEndian;
-    
+
     recvBuf.setHeader(headerLen, endian);
     const count = recvBuf.popAllMsg(outMsg);
     recvBuf.setHeader(oldHeaderLen, oldEndian);
-    
+
     return count;
   }
 
@@ -871,7 +878,7 @@ export function connect(url: string, targetServer?: string, flag?: number): Conn
 
   const sconn = new SConn(connectResult.connection);
   switchState(sconn, "newconnect", targetServer, flag);
-  
+
   return {
     connection: sconn
   };

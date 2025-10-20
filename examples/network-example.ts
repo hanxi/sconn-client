@@ -9,6 +9,53 @@ import { Network } from '../src/network';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
+async function jwtSign(payload, secret, alg = "HS256", expiresInSec = 60) {
+  // 1. 设置 JWT header
+  const header = {
+    alg,
+    typ: "JWT"
+  };
+
+  // 2. 设置 payload，加上 exp（过期时间）
+  const now = Math.floor(Date.now() / 1000);
+  const fullPayload = {
+    ...payload,
+    iat: now,
+    exp: now + expiresInSec,
+  };
+
+  // 3. Base64URL 编码函数
+  const base64UrlEncode = (obj) => {
+    return btoa(JSON.stringify(obj))
+      .replace(/=/g, "")
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_");
+  };
+
+  const headerB64 = base64UrlEncode(header);
+  const payloadB64 = base64UrlEncode(fullPayload);
+  const data = `${headerB64}.${payloadB64}`;
+
+  // 4. HMAC 签名（使用 SubtleCrypto）
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    enc.encode(secret),
+    { name: "HMAC", hash: { HS256: "SHA-256", HS384: "SHA-384", HS512: "SHA-512" }[alg] },
+    false,
+    ["sign"]
+  );
+
+  const signatureBuffer = await crypto.subtle.sign("HMAC", key, enc.encode(data));
+  const signatureB64 = btoa(String.fromCharCode(...new Uint8Array(signatureBuffer)))
+    .replace(/=/g, "")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_");
+
+  // 5. 返回完整 token
+  return `${data}.${signatureB64}`;
+}
+
 class NetworkExample {
   private network: Network | null = null;
   private isRunning = false;
@@ -57,7 +104,7 @@ class NetworkExample {
 
     console.log(`正在连接到 ${url}...`);
 
-    const connectResult = this.network.connect(url);
+    const connectResult = this.network.connect(url, "game1");
 
     if (!connectResult.success) {
       console.error(`连接失败: ${connectResult.error}`);
@@ -126,18 +173,21 @@ class NetworkExample {
   /**
    * 发送登录请求
    */
-  async login(username: string, password: string): Promise<any> {
+  async login(token): Promise<any> {
     if (!this.network) {
       throw new Error('Network未初始化');
     }
 
-    console.log(`发送登录请求: ${username}`);
+    console.log(`发送登录请求: ${token}`);
 
     try {
+      const ctx = {
+        rid: 0,
+        proto_checksum: "unknow"
+      };
       const response = await this.network.call('login.login', {
-        username,
-        password,
-        timestamp: Date.now()
+        token,
+        ctx,
       });
 
       console.log('登录响应:', response);
@@ -193,7 +243,7 @@ async function runExample() {
     }
 
     // 连接到WebSocket服务器
-    const connected = await client.connect('ws://localhost:8080');
+    const connected = await client.connect('ws://localhost:1249');
     if (!connected) {
       console.error('无法连接到服务器');
       return;
@@ -204,7 +254,12 @@ async function runExample() {
 
     // 发送登录请求
     try {
-      const loginResult = await client.login('testuser', 'password123');
+      const secret = "login_jwt_secret";
+      const data = {
+        account: "robot3"
+      }
+      const token = jwtSign(data, secret, "HS512", 60)
+      const loginResult = await client.login(token);
       console.log('登录成功:', loginResult);
     } catch (error) {
       console.log('登录请求发送失败（这在示例中是正常的）:', error.message);

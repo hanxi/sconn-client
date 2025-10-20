@@ -229,9 +229,9 @@ class WSConnection {
  * WebSocket连接接口，为sconn.ts提供基础功能
  */
 export interface IWSConnection {
-  send(data: string): void;
+  send(data: Uint8Array): void;
   popMsg(headerLen?: number, endian?: string): string | null;
-  recv(out: string[]): number;
+  recv(out: Uint8Array[]): number;
   update(): ConnectionUpdateResult;
   newConnect(url: string): NewConnectionResult;
   close(): void;
@@ -253,9 +253,10 @@ class ExtendedWSConnection extends WSConnection implements IWSConnection {
   /**
    * 发送数据
    */
-  send(data: string): void {
+  send(data: Uint8Array): void {
     if (this.vState === stateForward) {
       try {
+        console.log("fuck", data)
         this.websocket.send(data);
       } catch (error) {
         this.socketError = String(error);
@@ -282,7 +283,7 @@ class ExtendedWSConnection extends WSConnection implements IWSConnection {
   /**
    * 接收数据到数组
    */
-  recv(out: string[]): number {
+  recv(out: Uint8Array[]): number {
     const data = this.vRecvBuf.popAll();
     if (data) {
       out.push(data);

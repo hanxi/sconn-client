@@ -99,12 +99,12 @@ export class Network {
    * @param url WebSocket URL
    * @returns 连接结果
    */
-  public connect(url: string): ConnectionResult {
+  public connect(url: string, targetServer: string): ConnectionResult {
     // 重置请求会话
     this.requestSession.clear();
 
     try {
-      const result = connect(url);
+      const result = connect(url, targetServer);
 
       if (!result.connection) {
         return {
@@ -135,7 +135,7 @@ export class Network {
     try {
       // 使用 client.dispatch 处理响应
       const dispatchResult = this.client.dispatch(response);
-      
+
       if (!dispatchResult) {
         console.warn('Dispatch returned null or undefined');
         return;
