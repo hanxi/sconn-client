@@ -262,6 +262,7 @@ class ExtendedWSConnection extends WSConnection implements IWSConnection {
         this.socketError = String(error);
       }
     } else {
+      console.log("fuck push", data)
       this.sendBuffer.push(data);
     }
   }
@@ -320,6 +321,7 @@ class ExtendedWSConnection extends WSConnection implements IWSConnection {
         status: "connect"
       };
     } else if (this.vState === stateClose) {
+      console.log("fuck close");
       return {
         success: false,
         error: "connection_closed",

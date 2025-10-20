@@ -808,6 +808,7 @@ export class SConn {
   send(data: Uint8Array): boolean {
     const sendFn = this.vState.send;
     if (sendFn) {
+      console.log("send", data)
       sendFn(this, data);
     }
     return true;

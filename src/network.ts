@@ -161,10 +161,7 @@ export class Network {
             if (this.connection && this.clientRequest) {
               // 使用 clientRequest 编码响应数据
               const encodedData = this.clientRequest(name, data);
-              if (encodedData) {
-                const responseString = this.numberArrayToString(encodedData);
-                this.connection.send(responseString);
-              }
+              this.connection.send(encodedData);
             }
           }
         }
@@ -232,8 +229,7 @@ export class Network {
 
     try {
       const requestData = this.clientRequest(name, data, sessionIndex);
-      const requestString = this.numberArrayToString(requestData);
-      this.connection.send(requestString);
+      this.connection.send(requestData);
       return true;
     } catch (error) {
       console.error('Failed to send request:', error);

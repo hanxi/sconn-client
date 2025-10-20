@@ -185,7 +185,7 @@ class NetworkExample {
         rid: 0,
         proto_checksum: "unknow"
       };
-      const response = await this.network.call('login.login', {
+      const response = await this.network.invoke('login.login', {
         token,
         ctx,
       });
@@ -258,7 +258,8 @@ async function runExample() {
       const data = {
         account: "robot3"
       }
-      const token = jwtSign(data, secret, "HS512", 60)
+      const token = await jwtSign(data, secret, "HS512", 60);
+      console.log("token", token);
       const loginResult = await client.login(token);
       console.log('登录成功:', loginResult);
     } catch (error) {
