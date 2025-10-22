@@ -8,7 +8,7 @@ import { Buffer } from './buffer';
 
 const CACHE_MAX_COUNT = 100;
 const DEF_MSG_HEADER_LEN = 2;
-const DEF_MSG_ENDIAN = "little";
+const DEF_MSG_ENDIAN = "big";
 
 // 日志开关和格式化函数
 const VERBOSE = true;
@@ -297,12 +297,12 @@ interface ConnectResult {
 class Cache {
   private size: number = 0;
   private top: number = 0;
-  private cache: { [key: number]: string } = {};
+  private cache: { [key: number]: Uint8Array } = {};
 
   /**
    * 插入数据到缓存
    */
-  insert(data: string): void {
+  insert(data: Uint8Array): void {
     this.top = this.top + 1;
     this.cache[this.top] = data;
     this.size = this.size + data.length;
@@ -318,14 +318,14 @@ class Cache {
   /**
    * 获取指定字节数的数据
    */
-  get(nbytes: number): string | null {
+  get(nbytes: number): Uint8Array | null {
     if (this.size < nbytes) {
       return null;
     }
 
     let i = this.top;
     let count = 0;
-    const ret: string[] = [];
+    const ret: Uint8Array[] = [];
 
     while (count < nbytes) {
       const v = this.cache[i];
@@ -338,7 +338,7 @@ class Cache {
       if (count + len > nbytes) {
         const subN = nbytes - count;
         const pos = len - subN;
-        vv = v.substring(pos);
+        vv = v.slice(pos);
         n = subN;
       }
 
@@ -347,7 +347,15 @@ class Cache {
       i = i - 1;
     }
 
-    return ret.join('');
+    // 合并所有 Uint8Array
+    const totalLength = ret.reduce((sum, arr) => sum + arr.length, 0);
+    const result = new Uint8Array(totalLength);
+    let offset = 0;
+    for (const arr of ret) {
+      result.set(arr, offset);
+      offset += arr.length;
+    }
+    return result;
   }
 
   /**
@@ -363,10 +371,9 @@ class Cache {
 /**
  * 打包数据函数
  */
-function packData(data: string, headerLen: number, endian: 'big' | 'little'): Uint8Array {
-  // 将字符串转换为 UTF-8 字节
-  const textEncoder = new TextEncoder();
-  const dataBytes = textEncoder.encode(data);
+function packData(data: Uint8Array, headerLen: number, endian: 'big' | 'little'): Uint8Array {
+  // 数据已经是字节数组
+  const dataBytes = data;
   const len = dataBytes.length;
 
   // 创建头部字节数组
@@ -396,14 +403,14 @@ interface IState {
   name: string;
   request?: (self: SConn, ...args: any[]) => void;
   dispatch?: (self: SConn) => void;
-  send?: (self: SConn, data: string) => void;
+  send?: (self: SConn, data: Uint8Array) => void;
   dispose?: (self: SConn, success: boolean, err?: string, status?: string) => StateDisposeResult;
 }
 
 /**
  * 虚拟发送函数
  */
-function dummy(self: SConn, data: string): void {
+function dummy(self: SConn, data: Uint8Array): void {
   log.debug("sending dummy data");
 }
 
@@ -436,18 +443,23 @@ const states: { [key: string]: IState } = {
       // 构建连接请求：0\nbase64(DH_key)\nTargetServer\nflag\nAcceptEncodings
       let data = `0\n${CryptUtils.base64Encode(dhPublicKey)}\n${targetServer}\n${flag}`;
 
-      const packedData = packData(data, 2, "big");
+      // 将字符串转换为 Uint8Array
+      const textEncoder = new TextEncoder();
+      const dataBytes = textEncoder.encode(data);
+      const packedData = packData(dataBytes, 2, "big");
 
       self.vSock.send(packedData);
       self.vPrivateKey = privateKey;
-      console.log("fuck1", packedData)
+      // 调试输出已打包的数据
+      log.debug("sending connection request with DH key exchange", { packedDataLength: packedData.length });
       // log.debug("sending connection request with DH key exchange", packedData);
       self.vSendBufTop = 0;
     },
 
-    send: (self: SConn, data: string) => {
+    send: (self: SConn, data: Uint8Array) => {
       self.vSendBufTop = self.vSendBufTop + 1;
       self.vSendBuf[self.vSendBufTop] = data;
+      console.log("newconnect send", data);
     },
 
     dispatch: async (self: SConn) => {
@@ -474,9 +486,16 @@ const states: { [key: string]: IState } = {
 
       switchState(self, "forward");
 
+      self.vSock.setBinaryType("arraybuffer");
+
       // 发送在新连接建立中间缓存的数据包
       for (let i = 1; i <= self.vSendBufTop; i++) {
-        self.send(self.vSendBuf[i]);
+        if (self.vSendBuf[i]) {
+self.send(self.vSendBuf[i]);  
+        } else {
+          console.log("why fuck????")
+        }
+        
       }
       self.vSendBufTop = 0;
       self.vSendBuf = {};
@@ -515,7 +534,10 @@ const states: { [key: string]: IState } = {
       const hmacB64 = CryptUtils.base64Encode(hmac);
       data = `${content}${hmacB64}\n`;
 
-      const packedData = packData(data, 2, "big");
+      // 将字符串转换为 Uint8Array
+      const textEncoder = new TextEncoder();
+      const dataBytes = textEncoder.encode(data);
+      const packedData = packData(dataBytes, 2, "big");
 
       log.debug("sending reconnect request", {
         reconnectIndex: self.vReconnectIndex,
@@ -525,7 +547,7 @@ const states: { [key: string]: IState } = {
       self.vSock.send(packedData);
     },
 
-    send: (self: SConn, data: string) => {
+    send: (self: SConn, data: Uint8Array) => {
       // 在断线重连期间，仅仅是把数据插入到cache中
       self.vSendNumber = self.vSendNumber + data.length;
       self.vCache.insert(data);
@@ -618,6 +640,7 @@ const states: { [key: string]: IState } = {
       const sock = self.vSock;
       const cache = self.vCache;
 
+      console.log("forward send", data);
       sock.send(data);
       self.vSendNumber = self.vSendNumber + data.length;
       cache.insert(data);
@@ -808,7 +831,7 @@ export class SConn {
   send(data: Uint8Array): boolean {
     const sendFn = this.vState.send;
     if (sendFn) {
-      console.log("send", data)
+      log.debug("sending data", { dataLength: data.length });
       sendFn(this, data);
     }
     return true;
@@ -822,7 +845,7 @@ export class SConn {
     headerLen = headerLen || DEF_MSG_HEADER_LEN;
     endian = endian || DEF_MSG_ENDIAN;
 
-    const packedData = packData(data, headerLen, endian);
+    const packedData = packData(data, headerLen, endian as 'big' | 'little');
     if (sendFn) {
       sendFn(this, packedData);
     }

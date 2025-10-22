@@ -232,6 +232,7 @@ class WSConnection {
  * WebSocket连接接口，为sconn.ts提供基础功能
  */
 export interface IWSConnection {
+  setBinaryType(type: BinaryType): void ;
   send(data: Uint8Array): void;
   popMsg(headerLen?: number, endian?: string): string | null;
   recv(out: Uint8Array[]): number;
@@ -257,9 +258,10 @@ class ExtendedWSConnection extends WSConnection implements IWSConnection {
    * 发送数据
    */
   send(data: Uint8Array): void {
+    console.trace("send method called", data.length);
     if (this.vState === stateForward) {
       try {
-        console.log("fuck", data)
+        console.log("fuck", data);
         this.websocket.send(data);
       } catch (error) {
         this.socketError = String(error);
@@ -268,6 +270,9 @@ class ExtendedWSConnection extends WSConnection implements IWSConnection {
       console.log("fuck push", data)
       this.sendBuffer.push(data);
     }
+  }
+  setBinaryType(type: BinaryType): void {
+    this.websocket.binaryType = type;
   }
 
   /**
@@ -303,7 +308,7 @@ class ExtendedWSConnection extends WSConnection implements IWSConnection {
     if (this.vState === stateForward) {
       // 发送缓冲的数据
       const bufferedData = this.sendBuffer.popAll();
-      if (bufferedData) {
+      if (bufferedData.length>0) {
         this.send(bufferedData);
       }
       return {
@@ -360,6 +365,7 @@ class ExtendedWSConnection extends WSConnection implements IWSConnection {
     try {
       this.close();
       const newWs = new WebSocket(url);
+      // newWs.binaryType = "arraybuffer";
 
       // 替换WebSocket实例
       this.websocket = newWs;
@@ -396,6 +402,7 @@ export class WSClient {
   static new(url: string): ExtendedWSConnection | null {
     try {
       const ws = new WebSocket(url);
+      // ws.binaryType = "arraybuffer";
 
       if (!ws) {
         return null;
