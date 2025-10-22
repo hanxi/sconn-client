@@ -41,7 +41,7 @@ export class Buffer {
   /**
    * 根据包头信息弹出一段消息
    */
-  popMsg(headerLen?: number, headerEndian?: string): Uint8Array | null {
+  popMsg(headerLen: number, headerEndian: string): Uint8Array | null {
     const len = headerLen;
     const endian = headerEndian;
     
@@ -85,7 +85,7 @@ export class Buffer {
   /**
    * 弹出所有消息到数组
    */
-  popAllMsg(out: Uint8Array[], headerLen?: number, headerEndian?: string): number {
+  popAllMsg(out: Uint8Array[], headerLen: number, headerEndian: string): number {
     let count = 0;
     let msg = this.popMsg(headerLen, headerEndian);
     while (msg !== null) {

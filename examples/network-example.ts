@@ -173,7 +173,7 @@ class NetworkExample {
   /**
    * 发送登录请求
    */
-  async login(token): Promise<any> {
+  async login(token: string): Promise<any> {
     if (!this.network) {
       throw new Error('Network未初始化');
     }

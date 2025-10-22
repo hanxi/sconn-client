@@ -254,7 +254,6 @@ class ExtendedWSConnection extends WSConnection implements IWSConnection {
     try {
       this.close();
       const newWs = new WebSocket(url);
-      // newWs.binaryType = "arraybuffer";
 
       // 替换WebSocket实例
       this.websocket = newWs;
@@ -291,7 +290,6 @@ export class WSClient {
   static new(url: string): ExtendedWSConnection | null {
     try {
       const ws = new WebSocket(url);
-      // ws.binaryType = "arraybuffer";
 
       if (!ws) {
         return null;

@@ -53,7 +53,7 @@ export class Network {
 
   private sp: any = null;
   private client: any = null;
-  private clientRequest: ((name: string, args?: any, session?: number) => number[]) | null = null;
+  private clientRequest: ((name: string, args?: any, session?: number) => Uint8Array) | null = null;
 
   /**
    * 创建新的 Network 实例
