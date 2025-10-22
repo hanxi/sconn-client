@@ -1,6 +1,13 @@
 /**
- * Network - 基于 sproto 和 conn 的网络通信模块
- * TypeScript 版本，移植自 network.lua
+ * Network - 基于sproto协议和SConn的网络通信模块
+ * 
+ * 提供以下功能：
+ * - 基于sproto协议的消息编解码
+ * - 请求-响应模式的网络通信
+ * - 自动会话管理
+ * - 消息处理器注册机制
+ * 
+ * TypeScript版本，移植自network.lua
  */
 
 import sproto from './sproto/sproto.js';
@@ -42,7 +49,10 @@ type ResponseHandler = (request: any) => any;
 type CallbackFunction = (response: any) => void;
 
 /**
- * Network 类 - 网络通信管理器
+ * Network类 - 高级网络通信管理器
+ * 
+ * 封装了sproto协议处理和SConn连接管理，提供简单易用的API
+ * 支持异步请求-响应模式和消息处理器注册
  */
 export class Network {
   private sessionIndex: number = 0;
@@ -65,7 +75,9 @@ export class Network {
   }
 
   /**
-   * 初始化协议
+   * 初始化sproto协议
+   * @param protocolBuffer 协议二进制数据
+   * @param packageName 协议包名
    */
   private initialize(protocolBuffer: number[] | ArrayBuffer | Uint8Array, packageName: string): void {
     try {
@@ -94,8 +106,9 @@ export class Network {
   }
 
   /**
-   * 连接到指定URL
-   * @param url WebSocket URL
+   * 连接到指定的WebSocket服务器
+   * @param url WebSocket服务器URL
+   * @param targetServer 目标服务器标识
    * @returns 连接结果
    */
   public connect(url: string, targetServer: string): ConnectionResult {
@@ -123,8 +136,9 @@ export class Network {
   }
 
   /**
-   * 分发接收到的响应消息
-   * @param response 响应数据
+   * 分发接收到的消息
+   * 根据消息类型（REQUEST/RESPONSE）进行相应处理
+   * @param response 接收到的消息数据
    */
   private dispatch(response: number[]): void {
     if (!this.client) {
@@ -132,7 +146,7 @@ export class Network {
     }
 
     try {
-      // 使用 client.dispatch 处理响应
+      // 使用sproto客户端分发消息
       const dispatchResult = this.client.dispatch(response);
 
       if (!dispatchResult) {
@@ -187,15 +201,15 @@ export class Network {
       const updateResult = this.connection.update();
 
       if (updateResult.success) {
-        // 清空输出缓冲区
+        // 清空消息缓冲区
         this.outputBuffer.length = 0;
 
-        // 接收消息
+        // 接收并处理消息
         const count = this.connection.recvMsg(this.outputBuffer);
 
         for (let i = 0; i < count; i++) {
           const response = this.outputBuffer[i];
-          // 将接收到的字符串转换为数字数组进行处理
+          // 将消息转换为数字数组格式供sproto处理
           const responseArray = this.stringToNumberArray(response);
           this.dispatch(responseArray);
         }
@@ -256,7 +270,7 @@ export class Network {
     };
     this.requestSession.set(sessionIndex, sessionItem);
 
-    // 返回 Promise 来模拟协程行为
+    // 返回Promise实现异步请求-响应模式
     return new Promise((resolve, reject) => {
       sessionItem.handle = (response: any) => {
         resolve(response);
@@ -297,6 +311,8 @@ export class Network {
 
   /**
    * 工具方法：字符串转数字数组
+   * @param str 要转换的字符串
+   * @returns 转换后的数字数组
    */
   private stringToNumberArray(str: string): number[] {
     const encoder = new TextEncoder();
@@ -305,6 +321,8 @@ export class Network {
 
   /**
    * 工具方法：数字数组转字符串
+   * @param arr 要转换的数字数组
+   * @returns 转换后的字符串
    */
   private numberArrayToString(arr: number[]): string {
     const decoder = new TextDecoder();
@@ -313,13 +331,14 @@ export class Network {
 
   /**
    * 获取连接状态
+   * @returns 是否已连接
    */
   public isConnected(): boolean {
     return this.connection !== null;
   }
 
   /**
-   * 关闭连接
+   * 关闭连接并清理资源
    */
   public close(): void {
     if (this.connection) {

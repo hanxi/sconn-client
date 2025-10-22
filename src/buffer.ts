@@ -1,5 +1,10 @@
 /**
- * Buffer缓冲区类（基于Uint8Array）
+ * Buffer缓冲区类
+ * 
+ * 基于Uint8Array的二进制数据缓冲区，支持：
+ * - 数据追加和合并
+ * - 基于包头的消息分割
+ * - 大端/小端字节序支持
  */
 
 export const endianFormat = {
@@ -14,14 +19,16 @@ export class Buffer {
   private data: Uint8Array[] = [];
 
   /**
-   * 添加Uint8Array数据到缓冲区
+   * 添加数据到缓冲区
+   * @param arr 要添加的字节数组
    */
   push(arr: Uint8Array): void {
     this.data.push(arr);
   }
 
   /**
-   * 弹出所有数据（合并为单个Uint8Array）
+   * 弹出并合并所有缓冲数据
+   * @returns 合并后的字节数组
    */
   popAll(): Uint8Array {
     // 计算总长度
@@ -38,7 +45,10 @@ export class Buffer {
   }
 
   /**
-   * 根据包头信息弹出一段消息
+   * 根据包头信息解析并弹出一条完整消息
+   * @param headerLen 包头长度（字节）
+   * @param headerEndian 包头字节序（'big' 或 'little'）
+   * @returns 解析出的消息，如果数据不足则返回null
    */
   popMsg(headerLen: number, headerEndian: string): Uint8Array | null {
     const len = headerLen;
@@ -82,7 +92,11 @@ export class Buffer {
   }
 
   /**
-   * 弹出所有消息到数组
+   * 解析并弹出所有完整消息
+   * @param out 输出消息数组
+   * @param headerLen 包头长度
+   * @param headerEndian 包头字节序
+   * @returns 解析出的消息数量
    */
   popAllMsg(out: Uint8Array[], headerLen: number, headerEndian: string): number {
     let count = 0;
@@ -96,21 +110,23 @@ export class Buffer {
   }
 
   /**
-   * 获取缓冲区大小
+   * 获取缓冲区中数据的总字节数
+   * @returns 总字节数
    */
   getSize(): number {
     return this.data.reduce((sum, arr) => sum + arr.length, 0);
   }
 
   /**
-   * 清空缓冲区
+   * 清空缓冲区中的所有数据
    */
   clear(): void {
     this.data = [];
   }
 
   /**
-   * 静态创建方法
+   * 创建新的Buffer实例
+   * @returns 新的Buffer实例
    */
   static create(): Buffer {
     return new Buffer();

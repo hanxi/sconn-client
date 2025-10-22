@@ -87,7 +87,9 @@ class WSConnection {
   }
 
   /**
-   * 关闭连接
+   * 关闭WebSocket连接
+   * @param code 关闭代码
+   * @param reason 关闭原因
    */
   close(code?: number, reason?: string): void {
     this.log(`ws:${this.websocket.url} close`);
@@ -96,7 +98,7 @@ class WSConnection {
   }
 
   /**
-   * 注册回调函数
+   * 注册WebSocket事件回调函数
    */
   protected registerCallback(): void {
     this.websocket.onopen = () => {
@@ -111,9 +113,6 @@ class WSConnection {
     this.websocket.onclose = (event) => {
       this.vState = stateClose;
       this.log("websocket close");
-      console.log("code:", event.code);
-      console.log("reason:", event.reason);
-      console.log("wasClean:", event.wasClean);
     };
 
     this.websocket.onerror = () => {
@@ -150,19 +149,18 @@ class ExtendedWSConnection extends WSConnection implements IWSConnection {
   }
 
   /**
-   * 发送数据
+   * 发送数据到WebSocket
+   * @param data 要发送的二进制数据
    */
   send(data: Uint8Array): void {
-    console.trace("send method called", data.length);
     if (this.vState === stateForward) {
       try {
-        console.log("fuck", data);
         this.websocket.send(data);
       } catch (error) {
         this.socketError = String(error);
       }
     } else {
-      console.log("fuck push", data)
+      // 连接未就绪时，将数据缓存到发送缓冲区
       this.sendBuffer.push(data);
     }
   }
@@ -172,6 +170,9 @@ class ExtendedWSConnection extends WSConnection implements IWSConnection {
 
   /**
    * 弹出消息
+   * @param headerLen 包头长度，默认为2字节
+   * @param endian 字节序，默认为big endian
+   * @returns 解析出的消息，如果数据不足则返回null
    */
   popMsg(headerLen: number = 2, endian: string = "big"): Uint8Array | null {
     const result = this.vRecvBuf.popMsg(headerLen, endian);
@@ -180,6 +181,8 @@ class ExtendedWSConnection extends WSConnection implements IWSConnection {
 
   /**
    * 接收数据到数组
+   * @param out 输出数组
+   * @returns 接收到的数据块数量
    */
   recv(out: Uint8Array[]): number {
     const data = this.vRecvBuf.popAll();
@@ -192,6 +195,7 @@ class ExtendedWSConnection extends WSConnection implements IWSConnection {
 
   /**
    * 更新连接状态
+   * @returns 连接状态更新结果
    */
   update(): ConnectionUpdateResult {
     if (this.vState === stateForward) {
@@ -218,7 +222,6 @@ class ExtendedWSConnection extends WSConnection implements IWSConnection {
         status: "connect"
       };
     } else if (this.vState === stateClose) {
-      console.log("fuck close");
       return {
         success: false,
         error: "connection_closed",
@@ -248,7 +251,9 @@ class ExtendedWSConnection extends WSConnection implements IWSConnection {
   }
 
   /**
-   * 重新连接
+   * 重新连接到指定URL
+   * @param url WebSocket服务器URL
+   * @returns 重连操作结果
    */
   newConnect(url: string): NewConnectionResult {
     try {
@@ -273,7 +278,7 @@ class ExtendedWSConnection extends WSConnection implements IWSConnection {
   }
 
   /**
-   * 重新注册回调（需要公开访问）
+   * 重新注册WebSocket事件回调函数（公开方法）
    */
   public registerCallback(): void {
     super.registerCallback();
@@ -286,6 +291,8 @@ class ExtendedWSConnection extends WSConnection implements IWSConnection {
 export class WSClient {
   /**
    * 创建新的WebSocket连接
+   * @param url WebSocket服务器URL
+   * @returns WebSocket连接实例，失败时返回null
    */
   static new(url: string): ExtendedWSConnection | null {
     try {
@@ -308,6 +315,8 @@ export class WSClient {
 
 /**
  * 连接WebSocket函数，为sconn.ts提供接口
+ * @param url WebSocket服务器URL
+ * @returns 连接结果
  */
 export function connect(url: string): ConnectionResult {
   const conn = WSClient.new(url);

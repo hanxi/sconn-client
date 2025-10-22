@@ -14,15 +14,19 @@ const DEF_MSG_ENDIAN = "big";
 const VERBOSE = false;
 
 /**
- * 加密工具类 - 浏览器版本，兼容goscon服务器的DH和HMAC MD5
+ * 加密工具类
+ * 
+ * 提供DH密钥交换、MD5哈希、HMAC-MD5等加密功能的浏览器实现
+ * 兼容goscon服务器的加密协议
  */
 class CryptUtils {
-  // DH参数 (RFC 3526 - 2048-bit MODP Group)
+  /** DH参数 - RFC 3526 定义的2048位MODP群 */
   private static readonly DH_P = BigInt('0xFFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD129024E088A67CC74020BBEA63B139B22514A08798E3404DDEF9519B3CD3A431B302B0A6DF25F14374FE1356D6D51C245E485B576625E7EC6F44C42E9A637ED6B0BFF5CB6F406B7EDEE386BFB5A899FA5AE9F24117C4B1FE649286651ECE45B3DC2007CB8A163BF0598DA48361C55D39A69163FA8FD24CF5F83655D23DCA3AD961C62F356208552BB9ED529077096966D670C354E4ABC9804F1746C08CA18217C32905E462E36CE3BE39E772C180E86039B2783A2EC07A28FB5C55DF06F4C52C9DE2BCBF6955817183995497CEA956AE515D2261898FA051015728E5A8AAAC42DAD33170D04507A33A85521ABDF1CBA64ECFB850458DBEF0A8AEA71575D060C7DB3970F85A6E1E4C7ABF5AE8CDB0933D71E8C94E04A25619DCEE3D2261AD2EE6BF12FFA06D98A0864D87602733EC86A64521F2B18177B200CBBE117577A615D6C770988C0BAD946E208E24FA074E5AB3143DB5BFCE0FD108E4B82D120A93AD2CAFFFFFFFFFFFFFFFF');
   private static readonly DH_G = BigInt(2);
 
   /**
    * 生成随机DH私钥
+   * @returns 32字节的随机私钥
    */
   static generateRandomKey(): Uint8Array {
     return crypto.getRandomValues(new Uint8Array(32));
@@ -30,6 +34,8 @@ class CryptUtils {
 
   /**
    * DH密钥交换 - 计算公钥
+   * @param privateKey 客户端私钥
+   * @returns 256字节的公钥
    */
   static dhExchange(privateKey: Uint8Array): Uint8Array {
     const privKeyBigInt = this.bytesToBigInt(privateKey);
@@ -39,6 +45,9 @@ class CryptUtils {
 
   /**
    * DH密钥交换 - 计算共享密钥
+   * @param serverPublicKey 服务器公钥
+   * @param clientPrivateKey 客户端私钥
+   * @returns 32字节的共享密钥
    */
   static dhSecret(serverPublicKey: Uint8Array, clientPrivateKey: Uint8Array): Uint8Array {
     const serverPubBigInt = this.bytesToBigInt(serverPublicKey);
@@ -48,7 +57,9 @@ class CryptUtils {
   }
 
   /**
-   * 字节数组转BigInt
+   * 将字节数组转换为BigInt
+   * @param bytes 字节数组
+   * @returns 对应的BigInt值
    */
   private static bytesToBigInt(bytes: Uint8Array): bigint {
     let result = BigInt(0);
@@ -59,7 +70,10 @@ class CryptUtils {
   }
 
   /**
-   * BigInt转字节数组
+   * 将BigInt转换为指定长度的字节数组
+   * @param bigint 要转换的BigInt值
+   * @param length 目标字节数组长度
+   * @returns 字节数组
    */
   private static bigIntToBytes(bigint: bigint, length: number): Uint8Array {
     const bytes = new Uint8Array(length);
@@ -71,7 +85,11 @@ class CryptUtils {
   }
 
   /**
-   * 模幂运算
+   * 模幂运算 (base^exponent mod modulus)
+   * @param base 底数
+   * @param exponent 指数
+   * @param modulus 模数
+   * @returns 运算结果
    */
   private static modPow(base: bigint, exponent: bigint, modulus: bigint): bigint {
     let result = BigInt(1);
@@ -88,6 +106,8 @@ class CryptUtils {
 
   /**
    * Base64编码
+   * @param data 要编码的字节数组
+   * @returns Base64编码字符串
    */
   static base64Encode(data: Uint8Array): string {
     return btoa(String.fromCharCode(...data));
@@ -95,6 +115,8 @@ class CryptUtils {
 
   /**
    * Base64解码
+   * @param str Base64编码字符串
+   * @returns 解码后的字节数组
    */
   static base64Decode(str: string): Uint8Array {
     const binaryString = atob(str);
@@ -103,6 +125,8 @@ class CryptUtils {
 
   /**
    * MD5哈希算法实现
+   * @param data 要计算哈希的数据
+   * @returns 16字节的MD5哈希值
    */
   static md5(data: Uint8Array): Uint8Array {
     // MD5算法实现
@@ -185,14 +209,20 @@ class CryptUtils {
   }
 
   /**
-   * 左旋转
+   * 32位整数左旋转操作
+   * @param value 要旋转的值
+   * @param amount 旋转位数
+   * @returns 旋转后的值
    */
   private static leftRotate(value: number, amount: number): number {
     return ((value << amount) | (value >>> (32 - amount))) >>> 0;
   }
 
   /**
-   * HMAC-MD5计算
+   * HMAC-MD5消息认证码计算
+   * @param key 密钥
+   * @param data 要认证的数据
+   * @returns HMAC-MD5认证码
    */
   static hmacMd5(key: Uint8Array, data: Uint8Array): Uint8Array {
     const blockSize = 64;
@@ -229,7 +259,9 @@ class CryptUtils {
   }
 
   /**
-   * 计算字符串的hash (使用MD5)
+   * 计算字符串的MD5哈希值
+   * @param content 要计算哈希的字符串
+   * @returns MD5哈希值
    */
   static hashKey(content: string): Uint8Array {
     const encoder = new TextEncoder();
@@ -240,6 +272,10 @@ class CryptUtils {
 
 /**
  * 格式化日志输出
+ * @param level 日志级别
+ * @param component 组件名称
+ * @param message 日志消息
+ * @param data 可选的附加数据
  */
 function formatLog(level: string, component: string, message: string, data?: any): void {
   if (!VERBOSE) return;
@@ -258,7 +294,7 @@ function formatLog(level: string, component: string, message: string, data?: any
   }
 }
 
-// 组件专用日志函数
+/** SConn组件专用日志函数 */
 const log = {
   debug: (message: string, data?: any) => formatLog('DEBUG', 'SConn', message, data),
   info: (message: string, data?: any) => formatLog('INFO', 'SConn', message, data),
@@ -301,6 +337,7 @@ class Cache {
 
   /**
    * 插入数据到缓存
+   * @param data 要缓存的数据
    */
   insert(data: Uint8Array): void {
     this.top = this.top + 1;
@@ -317,6 +354,8 @@ class Cache {
 
   /**
    * 获取指定字节数的数据
+   * @param nbytes 需要获取的字节数
+   * @returns 获取到的数据，如果缓存不足则返回null
    */
   get(nbytes: number): Uint8Array | null {
     if (this.size < nbytes) {
@@ -359,7 +398,7 @@ class Cache {
   }
 
   /**
-   * 清空缓存
+   * 清空缓存中的所有数据
    */
   clear(): void {
     this.size = 0;
@@ -369,7 +408,11 @@ class Cache {
 }
 
 /**
- * 打包数据函数
+ * 打包数据函数 - 为数据添加长度头部
+ * @param data 要打包的数据
+ * @param headerLen 头部长度（字节）
+ * @param endian 字节序（'big' 或 'little'）
+ * @returns 打包后的数据（头部+数据）
  */
 function packData(data: Uint8Array, headerLen: number, endian: 'big' | 'little'): Uint8Array {
   // 数据已经是字节数组
@@ -408,14 +451,21 @@ interface IState {
 }
 
 /**
- * 虚拟发送函数
+ * 虚拟发送函数 - 用于错误状态下的空操作
+ * @param self SConn实例
+ * @param data 要发送的数据
  */
 function dummy(self: SConn, data: Uint8Array): void {
   log.debug("sending dummy data");
 }
 
 /**
- * 错误处理函数
+ * 错误状态处理函数
+ * @param self SConn实例
+ * @param success 操作是否成功
+ * @param err 错误信息
+ * @param status 状态信息
+ * @returns 状态处理结果
  */
 function disposeError(self: SConn, success: boolean, err?: string, status?: string): StateDisposeResult {
   return {
@@ -484,12 +534,11 @@ const states: { [key: string]: IState } = {
 
       self.vSock.setBinaryType("arraybuffer");
 
-      // 发送在新连接建立中间缓存的数据包
+      // 发送在新连接建立期间缓存的数据包
       for (let i = 1; i <= self.vSendBufTop; i++) {
         if (self.vSendBuf[i]) {
-self.send(self.vSendBuf[i]);  
+          self.send(self.vSendBuf[i]);  
         }
-        
       }
       self.vSendBufTop = 0;
       self.vSendBuf = {};
@@ -691,7 +740,10 @@ self.send(self.vSendBuf[i]);
 };
 
 /**
- * 切换状态
+ * 切换SConn状态机状态
+ * @param self SConn实例
+ * @param stateName 目标状态名称
+ * @param args 状态切换参数
  */
 function switchState(self: SConn, stateName: string, ...args: any[]): void {
   const state = states[stateName];
@@ -711,7 +763,13 @@ function switchState(self: SConn, stateName: string, ...args: any[]): void {
 }
 
 /**
- * SConn主类
+ * SConn主类 - 基于状态机的WebSocket连接管理器
+ * 
+ * 提供以下功能：
+ * - 自动重连机制
+ * - 数据缓存和重传
+ * - DH密钥交换和加密通信
+ * - 状态机驱动的连接管理
  */
 export class SConn {
   public vState: IState;
@@ -726,25 +784,28 @@ export class SConn {
   public vRecvBuf: Buffer = Buffer.create();
   public vReconnectCb?: (success: boolean) => void;
 
-  // 新增加密相关字段
+  /** 加密相关字段 */
   public vPrivateKey?: Uint8Array;
   public vSecret: Uint8Array;
 
   constructor(sock: IWSConnection) {
     this.vState = states.newconnect;
     this.vSock = sock;
-    this.vSecret = new Uint8Array(0); // 初始化为空数组，将在DH密钥交换后设置实际值
+    this.vSecret = new Uint8Array(0); // 初始化为空，DH密钥交换后设置实际值
   }
 
   /**
    * 获取当前状态
+   * @returns 当前状态名称
    */
   curState(): string {
     return this.vState.name;
   }
 
   /**
-   * 重连
+   * 重连到服务器
+   * @param cb 重连结果回调函数
+   * @returns 重连操作结果
    */
   reconnect(cb?: (success: boolean) => void): ReconnectResult {
     const stateName = this.vState.name;
@@ -778,7 +839,7 @@ export class SConn {
   }
 
   /**
-   * 刷新发送缓冲区
+   * 刷新发送缓冲区（空实现）
    */
   flushSend(): void {
     // 空实现
@@ -786,6 +847,7 @@ export class SConn {
 
   /**
    * 更新连接状态
+   * @returns 状态更新结果
    */
   update(): StateDisposeResult {
     const sock = this.vSock;
@@ -819,6 +881,8 @@ export class SConn {
 
   /**
    * 发送数据
+   * @param data 要发送的数据
+   * @returns 是否发送成功
    */
   send(data: Uint8Array): boolean {
     const sendFn = this.vState.send;
@@ -831,6 +895,10 @@ export class SConn {
 
   /**
    * 发送消息（带包头）
+   * @param data 要发送的消息数据
+   * @param headerLen 包头长度，默认为2字节
+   * @param endian 字节序，默认为big endian
+   * @returns 是否发送成功
    */
   sendMsg(data: Uint8Array, headerLen?: number, endian?: string): boolean {
     const sendFn = this.vState.send;
@@ -846,6 +914,10 @@ export class SConn {
 
   /**
    * 接收消息
+   * @param outMsg 输出消息数组
+   * @param headerLen 包头长度，默认为2字节
+   * @param endian 字节序，默认为big endian
+   * @returns 接收到的消息数量
    */
   recvMsg(outMsg: Uint8Array[], headerLen?: number, endian?: string): number {
     headerLen = headerLen || DEF_MSG_HEADER_LEN;
@@ -858,7 +930,7 @@ export class SConn {
   }
 
   /**
-   * 关闭连接
+   * 关闭连接并清理资源
    */
   close(): void {
     this.vSock.close();
@@ -868,7 +940,11 @@ export class SConn {
 }
 
 /**
- * 连接主机
+ * 连接到指定的WebSocket服务器
+ * @param url WebSocket服务器URL
+ * @param targetServer 目标服务器标识
+ * @param flag 连接标志
+ * @returns 连接结果，包含SConn实例或错误信息
  */
 export function connect(url: string, targetServer?: string, flag?: number): ConnectResult {
   const connectResult = connectWS(url);
