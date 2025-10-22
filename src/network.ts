@@ -10,7 +10,7 @@
  * TypeScript版本，移植自network.lua
  */
 
-import sproto from './sproto/sproto.js';
+import sproto from './sproto/sproto';
 import { SConn, connect } from './sconn';
 
 /**
@@ -70,7 +70,7 @@ export class Network {
    * @param protocolBuffer 协议二进制数据
    * @param packageName 包名，默认为 "base.package"
    */
-  constructor(protocolBuffer: number[] | ArrayBuffer | Uint8Array, packageName: string = "base.package") {
+  constructor(protocolBuffer: number[], packageName: string = "base.package") {
     this.initialize(protocolBuffer, packageName);
   }
 
@@ -79,7 +79,7 @@ export class Network {
    * @param protocolBuffer 协议二进制数据
    * @param packageName 协议包名
    */
-  private initialize(protocolBuffer: number[] | ArrayBuffer | Uint8Array, packageName: string): void {
+  private initialize(protocolBuffer: number[], packageName: string): void {
     try {
       // 创建 sproto 实例
       this.sp = sproto.createNew(protocolBuffer);
