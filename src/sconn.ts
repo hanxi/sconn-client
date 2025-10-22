@@ -628,7 +628,6 @@ self.send(self.vSendBuf[i]);
       const sock = self.vSock;
       const out: Uint8Array[] = [];
       const count = sock.recv(out);
-
       for (let i = 0; i < count; i++) {
         const v = out[i];
         self.vRecvNumber = self.vRecvNumber + v.length;
@@ -853,14 +852,6 @@ export class SConn {
   }
 
   /**
-   * 接收数据
-   */
-  recv(out: Uint8Array[]): number {
-    const recvBuf = this.vRecvBuf;
-    return recvBuf.popAllMsg(out);
-  }
-
-  /**
    * 接收消息
    */
   recvMsg(outMsg: Uint8Array[], headerLen?: number, endian?: string): number {
@@ -868,12 +859,7 @@ export class SConn {
     endian = endian || DEF_MSG_ENDIAN;
 
     const recvBuf = this.vRecvBuf;
-    const oldHeaderLen = recvBuf.headerLen;
-    const oldEndian = recvBuf.headerEndian;
-
-    recvBuf.setHeader(headerLen, endian);
-    const count = recvBuf.popAllMsg(outMsg);
-    recvBuf.setHeader(oldHeaderLen, oldEndian);
+    const count = recvBuf.popAllMsg(outMsg, headerLen, endian);
 
     return count;
   }

@@ -87,117 +87,12 @@ class WSConnection {
   }
 
   /**
-   * 检查连接状态
-   */
-  private checkConnect(): ConnectionCheckResult {
-    if (this.vState === stateForward) {
-      return { connected: true };
-    } else if (this.vState === stateConnect) {
-      const deadline = this.vDeadline;
-      if (deadline && deadline < this.time()) {
-        return {
-          connected: false,
-          error: "dial_timeout",
-          status: this.vState.name
-        };
-      } else {
-        return {
-          connected: false,
-          status: this.vState.name
-        };
-      }
-    } else {
-      if (this.vRecvBuf.getSize() > 0) {
-        return { connected: true };
-      }
-      return {
-        connected: false,
-        error: this.vState.name
-      };
-    }
-  }
-
-  /**
-   * 更新发送
-   */
-  updateSend(sendBuf: Buffer): SendUpdateResult {
-    if (this.vState !== stateForward) {
-      return {
-        bytesSent: 0,
-        error: this.vState.name
-      };
-    }
-
-    const msg = sendBuf.popAll();
-    if (msg) {
-      try {
-        this.websocket.send(msg);
-        return { bytesSent: msg.length };
-      } catch (error) {
-        return {
-          bytesSent: 0,
-          error: String(error)
-        };
-      }
-    }
-    return { bytesSent: 0 };
-  }
-
-  /**
-   * 更新接收
-   */
-  updateRecv(buf: Buffer): ReceiveUpdateResult {
-    const checkResult = this.checkConnect();
-    if (!checkResult.connected) {
-      return {
-        bytesReceived: 0,
-        error: checkResult.error
-      };
-    }
-
-    const msg = this.vRecvBuf.popAll();
-    if (!msg) {
-      return {
-        bytesReceived: 0,
-        error: this.socketError || undefined
-      };
-    }
-
-    buf.push(msg);
-    return {
-      bytesReceived: msg.length,
-      error: this.socketError || undefined
-    };
-  }
-
-  /**
    * 关闭连接
    */
   close(code?: number, reason?: string): void {
     this.log(`ws:${this.websocket.url} close`);
     this.websocket.close(code, reason);
     this.vState = stateClose;
-  }
-
-  /**
-   * 获取连接状态
-   */
-  getState(): string {
-    return this.vState.name;
-  }
-
-  /**
-   * 检查是否已连接
-   */
-  isConnected(): boolean {
-    return this.vState === stateForward;
-  }
-
-  /**
-   * 获取WebSocket原始对象
-   */
-  raw(): WebSocket {
-    return this.websocket;
   }
 
   /**
@@ -234,7 +129,7 @@ class WSConnection {
 export interface IWSConnection {
   setBinaryType(type: BinaryType): void ;
   send(data: Uint8Array): void;
-  popMsg(headerLen?: number, endian?: string): string | null;
+  popMsg(headerLen?: number, endian?: string): Uint8Array | null;
   recv(out: Uint8Array[]): number;
   update(): ConnectionUpdateResult;
   newConnect(url: string): NewConnectionResult;
@@ -278,14 +173,8 @@ class ExtendedWSConnection extends WSConnection implements IWSConnection {
   /**
    * 弹出消息
    */
-  popMsg(headerLen: number = 2, endian: string = "big"): string | null {
-    const oldHeaderLen = this.vRecvBuf.headerLen;
-    const oldEndian = this.vRecvBuf.headerEndian;
-
-    this.vRecvBuf.setHeader(headerLen, endian);
-    const result = this.vRecvBuf.popMsg();
-
-    this.vRecvBuf.setHeader(oldHeaderLen, oldEndian);
+  popMsg(headerLen: number = 2, endian: string = "big"): Uint8Array | null {
+    const result = this.vRecvBuf.popMsg(headerLen, endian);
     return result;
   }
 
@@ -294,7 +183,7 @@ class ExtendedWSConnection extends WSConnection implements IWSConnection {
    */
   recv(out: Uint8Array[]): number {
     const data = this.vRecvBuf.popAll();
-    if (data) {
+    if (data.length>0) {
       out.push(data);
       return 1;
     }

@@ -192,7 +192,7 @@ export class Network {
         this.outputBuffer.length = 0;
 
         // 接收消息
-        const count = this.connection.recv(this.outputBuffer);
+        const count = this.connection.recvMsg(this.outputBuffer);
 
         for (let i = 0; i < count; i++) {
           const response = this.outputBuffer[i];

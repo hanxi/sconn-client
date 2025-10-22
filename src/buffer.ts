@@ -7,57 +7,17 @@ export const endianFormat = {
   "big": ">"
 };
 
-const DEFAULT_HEADER_LENGTH = 2;
-const DEFAULT_HEADER_ENDIAN = "big";
-
 /**
  * 缓冲区类（处理Uint8Array二进制数据）
  */
 export class Buffer {
   private data: Uint8Array[] = [];
-  public headerLen: number = DEFAULT_HEADER_LENGTH;
-  public headerEndian: string = DEFAULT_HEADER_ENDIAN;
-
-  constructor(headerLen?: number, headerEndian?: string) {
-    this.setHeader(headerLen, headerEndian);
-  }
-
-  /**
-   * 设置header编码格式以及size大小
-   */
-  setHeader(headerLen?: number, headerEndian?: string): void {
-    this.headerLen = headerLen || DEFAULT_HEADER_LENGTH;
-    this.headerEndian = headerEndian || DEFAULT_HEADER_ENDIAN;
-    if (!endianFormat[this.headerEndian as keyof typeof endianFormat]) {
-      throw new Error(`Invalid headerEndian: ${this.headerEndian}`);
-    }
-  }
-
-  /**
-   * 根据设置的header编码格式，编码长度
-   */
-  packHeader(sz: number): Uint8Array {
-    const header = new Uint8Array(this.headerLen);
-    if (this.headerEndian === 'big') {
-      // 大端模式：高位在前
-      for (let i = 0; i < this.headerLen; i++) {
-        const shift = (this.headerLen - 1 - i) * 8;
-        header[i] = (sz >>> shift) & 0xFF;
-      }
-    } else {
-      // 小端模式：低位在前
-      for (let i = 0; i < this.headerLen; i++) {
-        const shift = i * 8;
-        header[i] = (sz >>> shift) & 0xFF;
-      }
-    }
-    return header;
-  }
 
   /**
    * 添加Uint8Array数据到缓冲区
    */
   push(arr: Uint8Array): void {
+    console.trace("buffer push", arr);
     this.data.push(arr);
   }
 
@@ -79,24 +39,14 @@ export class Buffer {
   }
 
   /**
-   * 添加消息（包含header）
-   */
-  pushMsg(data: Uint8Array): void {
-    const len = data.length;
-    const header = this.packHeader(len);
-    // 合并header和数据并添加到缓冲区
-    const message = new Uint8Array(header.length + data.length);
-    message.set(header);
-    message.set(data, header.length);
-    this.push(message);
-  }
-
-  /**
    * 根据包头信息弹出一段消息
    */
-  popMsg(): Uint8Array | null {
+  popMsg(headerLen?: number, headerEndian?: string): Uint8Array | null {
+    const len = headerLen;
+    const endian = headerEndian;
+    
     const current = this.popAll(); // 先合并所有数据
-    if (current.length < this.headerLen) {
+    if (current.length < len) {
       // 数据不足包头长度，放回缓冲区
       if (current.length > 0) this.data.push(current);
       return null;
@@ -104,19 +54,19 @@ export class Buffer {
 
     // 解析包头
     let sz = 0;
-    const header = current.subarray(0, this.headerLen);
-    if (this.headerEndian === 'big') {
-      for (let i = 0; i < this.headerLen; i++) {
+    const header = current.subarray(0, len);
+    if (endian === 'big') {
+      for (let i = 0; i < len; i++) {
         sz = (sz << 8) + header[i];
       }
     } else {
-      for (let i = 0; i < this.headerLen; i++) {
+      for (let i = 0; i < len; i++) {
         sz += header[i] << (i * 8);
       }
     }
 
     // 检查数据是否足够
-    const totalNeeded = this.headerLen + sz;
+    const totalNeeded = len + sz;
     if (current.length < totalNeeded) {
       // 数据不足，放回缓冲区
       this.data.push(current);
@@ -124,7 +74,7 @@ export class Buffer {
     }
 
     // 提取消息和剩余数据
-    const message = current.subarray(this.headerLen, totalNeeded);
+    const message = current.subarray(len, totalNeeded);
     const remaining = current.subarray(totalNeeded);
     if (remaining.length > 0) {
       this.data.push(remaining);
@@ -135,13 +85,13 @@ export class Buffer {
   /**
    * 弹出所有消息到数组
    */
-  popAllMsg(out: Uint8Array[]): number {
+  popAllMsg(out: Uint8Array[], headerLen?: number, headerEndian?: string): number {
     let count = 0;
-    let msg = this.popMsg();
+    let msg = this.popMsg(headerLen, headerEndian);
     while (msg !== null) {
       out.push(msg);
       count++;
-      msg = this.popMsg();
+      msg = this.popMsg(headerLen, headerEndian);
     }
     return count;
   }
@@ -163,7 +113,7 @@ export class Buffer {
   /**
    * 静态创建方法
    */
-  static create(headerLen?: number, headerEndian?: string): Buffer {
-    return new Buffer(headerLen, headerEndian);
+  static create(): Buffer {
+    return new Buffer();
   }
 }
