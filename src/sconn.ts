@@ -11,7 +11,7 @@ const DEF_MSG_HEADER_LEN = 2;
 const DEF_MSG_ENDIAN = "big";
 
 // 日志开关和格式化函数
-const VERBOSE = true;
+const VERBOSE = false;
 
 /**
  * 加密工具类 - 浏览器版本，兼容goscon服务器的DH和HMAC MD5
@@ -450,16 +450,12 @@ const states: { [key: string]: IState } = {
 
       self.vSock.send(packedData);
       self.vPrivateKey = privateKey;
-      // 调试输出已打包的数据
-      log.debug("sending connection request with DH key exchange", { packedDataLength: packedData.length });
-      // log.debug("sending connection request with DH key exchange", packedData);
       self.vSendBufTop = 0;
     },
 
     send: (self: SConn, data: Uint8Array) => {
       self.vSendBufTop = self.vSendBufTop + 1;
       self.vSendBuf[self.vSendBufTop] = data;
-      console.log("newconnect send", data);
     },
 
     dispatch: async (self: SConn) => {
@@ -492,8 +488,6 @@ const states: { [key: string]: IState } = {
       for (let i = 1; i <= self.vSendBufTop; i++) {
         if (self.vSendBuf[i]) {
 self.send(self.vSendBuf[i]);  
-        } else {
-          console.log("why fuck????")
         }
         
       }
@@ -639,7 +633,6 @@ self.send(self.vSendBuf[i]);
       const sock = self.vSock;
       const cache = self.vCache;
 
-      console.log("forward send", data);
       sock.send(data);
       self.vSendNumber = self.vSendNumber + data.length;
       cache.insert(data);

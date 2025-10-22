@@ -17,7 +17,6 @@ export class Buffer {
    * 添加Uint8Array数据到缓冲区
    */
   push(arr: Uint8Array): void {
-    console.trace("buffer push", arr);
     this.data.push(arr);
   }
 

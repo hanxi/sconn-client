@@ -70,7 +70,6 @@ class NetworkExample {
       const protocolBuffer = this.createProtocolBuffer();
 
       this.network = new Network(protocolBuffer);
-      console.log('Network实例创建成功');
 
       // 注册消息处理器
       this.registerHandlers();
@@ -102,7 +101,6 @@ class NetworkExample {
       return false;
     }
 
-    console.log(`正在连接到 ${url}...`);
 
     const connectResult = this.network.connect(url, "game1");
 
@@ -111,7 +109,6 @@ class NetworkExample {
       return false;
     }
 
-    console.log('连接成功！');
 
     // 开始网络更新循环
     this.startUpdateLoop();
@@ -135,7 +132,6 @@ class NetworkExample {
       };
     });
 
-    console.log('消息处理器注册完成');
   }
 
   /**
@@ -167,7 +163,6 @@ class NetworkExample {
    */
   private async handleReconnect(): Promise<void> {
     // 这里可以实现重连逻辑
-    console.log('重连功能需要配合SConn使用');
   }
 
   /**
@@ -178,7 +173,6 @@ class NetworkExample {
       throw new Error('Network未初始化');
     }
 
-    console.log(`发送登录请求: ${token}`);
 
     try {
       const ctx = {
@@ -190,7 +184,6 @@ class NetworkExample {
         ctx,
       });
 
-      console.log('登录响应:', response);
       return response;
     } catch (error) {
       console.error('登录失败:', error);
@@ -203,7 +196,6 @@ class NetworkExample {
    * 断开连接
    */
   disconnect(): void {
-    console.log('正在断开连接...');
 
     this.isRunning = false;
 
@@ -217,7 +209,6 @@ class NetworkExample {
       this.network = null;
     }
 
-    console.log('连接已断开');
   }
 
   /**
@@ -259,8 +250,6 @@ async function runExample() {
         account: "robot3"
       }
       const token = await jwtSign(data, secret, "HS512", 60);
-      // const token = "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJhY2NvdW50Ijoicm9ib3QzIiwiaWF0IjoxNzYxMDQ0MTIzLCJleHAiOjE3NjEwNDQxODN9.a81G0g0iYM2oLZA-3rjqouZHGha_j2If7ZRvWTI5PyygZ9uZ21HaaOvmVAVNFCpNUJpflm6IClTPkKPXygz-AQ";
-      console.log("token", token);
       const loginResult = await client.login(token);
       console.log('登录成功:', loginResult);
     } catch (error) {
@@ -273,7 +262,6 @@ async function runExample() {
     // 定期发送心跳
     const heartbeatInterval = setInterval(() => {
       if (client.isConnected()) {
-        console.log('发送心跳...');
         //client.sendHeartbeat();
       } else {
         clearInterval(heartbeatInterval);
@@ -295,11 +283,6 @@ async function runExample() {
 
 // 如果直接运行此文件，则执行示例
 if (require.main === module) {
-  console.log('=== Network WebSocket客户端示例 ===');
-  console.log('连接到 ws://localhost:8080');
-  console.log('确保你有一个WebSocket服务器在运行...');
-  console.log('你可以使用 npm run server 启动测试服务器');
-  console.log('');
 
   runExample().catch(console.error);
 }

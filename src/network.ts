@@ -87,7 +87,6 @@ export class Network {
         throw new Error('Failed to create sproto attach function');
       }
 
-      console.log('Network initialized successfully');
     } catch (error) {
       console.error('Failed to initialize Network:', error);
       throw error;
