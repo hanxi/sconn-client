@@ -1,5 +1,4 @@
 // sproto.js 解析 - 优化版本
-const netutils = require("./netutils");
 
 const sproto = (() => {
     const api = {};
@@ -63,6 +62,89 @@ const sproto = (() => {
             ((stream[2] & 0xff) << 16) |
             ((stream[3] & 0xff) << 24)
         ) >>> 0,
+
+        // 从 netutils.js 移动过来的接口
+        // 字符串转 UTF-8 字节数组，优化性能
+        string2utf8: (str) => {
+            if (typeof str !== 'string') {
+                throw new TypeError('Expected a string');
+            }
+            
+            const result = [];
+            
+            for (let i = 0; i < str.length; i++) {
+                const code = str.charCodeAt(i);
+                
+                if (code <= 0x7f) {
+                    result.push(code);
+                } else if (code <= 0x7ff) {
+                    result.push(
+                        0xc0 | (code >> 6),
+                        0x80 | (code & 0x3f)
+                    );
+                } else if ((code >= 0x800 && code <= 0xd7ff) || (code >= 0xe000 && code <= 0xffff)) {
+                    result.push(
+                        0xe0 | (code >> 12),
+                        0x80 | ((code >> 6) & 0x3f),
+                        0x80 | (code & 0x3f)
+                    );
+                }
+            }
+            
+            return result;
+        },
+
+        // UTF-8 字节数组转字符串，优化性能和错误处理
+        utf82string: (arr) => {
+            if (typeof arr === 'string') {
+                return null;
+            }
+            
+            if (!Array.isArray(arr)) {
+                throw new TypeError('Expected an array');
+            }
+
+            let result = '';
+            let i = 0;
+            
+            while (i < arr.length && arr[i] != null) {
+                const byte1 = arr[i];
+                
+                if (byte1 < 0x80) {
+                    // 单字节字符
+                    result += String.fromCharCode(byte1);
+                    i++;
+                } else if ((byte1 & 0xe0) === 0xc0) {
+                    // 双字节字符
+                    if (i + 1 >= arr.length) break;
+                    const byte2 = arr[i + 1];
+                    const codePoint = ((byte1 & 0x1f) << 6) | (byte2 & 0x3f);
+                    result += String.fromCharCode(codePoint);
+                    i += 2;
+                } else if ((byte1 & 0xf0) === 0xe0) {
+                    // 三字节字符
+                    if (i + 2 >= arr.length) break;
+                    const byte2 = arr[i + 1];
+                    const byte3 = arr[i + 2];
+                    const codePoint = ((byte1 & 0x0f) << 12) | ((byte2 & 0x3f) << 6) | (byte3 & 0x3f);
+                    result += String.fromCharCode(codePoint);
+                    i += 3;
+                } else {
+                    // 无效字节，跳过
+                    i++;
+                }
+            }
+            
+            return result;
+        },
+
+        // 数组连接，使用现代语法
+        arrayconcat: (a1, a2) => {
+            if (!Array.isArray(a1) || !Array.isArray(a2)) {
+                throw new TypeError('Both arguments must be arrays');
+            }
+            return [...a1, ...a2];
+        }
     };
 
     const countArray = (stream) => {
@@ -857,7 +939,7 @@ const sproto = (() => {
                         return -1;
                     }
                     for (var i = 0; i < Math.floor(sz / 4); i++) {
-                        var value = expand64(utils.toDword(stream.slice(i * 4)));
+                        var value = utils.expand64(utils.toDword(stream.slice(i * 4)));
                         args.index = i + 1;
                         args.value = value;
                         args.length = 8;
@@ -1309,7 +1391,7 @@ const sproto = (() => {
                             arr = target;
                         } else {
                             var str = target;
-                            arr = netutils.string2utf8(str);
+                            arr = utils.string2utf8(str);
                         }
 
                         var sz = arr.length;
@@ -1425,7 +1507,7 @@ const sproto = (() => {
                                     } else if (sz == 8) {
                                         var low = utils.toDword(currentdata.slice(CONSTANTS.SIZEOF_LENGTH));
                                         var hi = utils.toDword(currentdata.slice(CONSTANTS.SIZEOF_LENGTH + 4));
-                                        var v = hi_low_uint64(low, hi);
+                                        var v = utils.hiLowUint64(low, hi);
                                         args.value = v;
                                         args.length = 8;
                                         cb(args);
@@ -1514,7 +1596,7 @@ const sproto = (() => {
                         if (args.extra) {
                             value = arr;
                         } else {
-                            value = netutils.utf82string(arr);
+                            value = utils.utf82string(arr);
                         }
 
                         break;
@@ -1747,7 +1829,7 @@ const sproto = (() => {
 
                 if (args) {
                     var databuffer = sp.encode(proto.request, args);
-                    return sp.pack(netutils.arrayconcat(headerbuffer, databuffer));
+                    return sp.pack(utils.arrayconcat(headerbuffer, databuffer));
                 } else {
                     return sp.pack(headerbuffer);
                 }
@@ -1761,7 +1843,7 @@ const sproto = (() => {
                 var headerbuffer = self.proto.encode(self.package, headerTemp);
                 if (response) {
                     var databuffer = self.proto.encode(response, args);
-                    return self.proto.pack(netutils.arrayconcat(headerbuffer, databuffer));
+                    return self.proto.pack(utils.arrayconcat(headerbuffer, databuffer));
                 } else {
                     return self.proto.pack(headerbuffer);
                 }
