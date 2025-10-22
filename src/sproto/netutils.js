@@ -1,25 +1,5 @@
 const netutils = (() => {
     const utils = {};
-
-    // 数组转 ArrayBuffer，使用 Uint8Array 提升性能
-    utils.array2arraybuffer = (array) => {
-        if (!Array.isArray(array)) {
-            throw new TypeError('Expected an array');
-        }
-        const buffer = new ArrayBuffer(array.length);
-        const view = new Uint8Array(buffer);
-        view.set(array);
-        return buffer;
-    };
-
-    // ArrayBuffer 转数组，使用 Uint8Array 提升性能
-    utils.arraybuffer2array = (buffer) => {
-        if (!(buffer instanceof ArrayBuffer)) {
-            throw new TypeError('Expected an ArrayBuffer');
-        }
-        return Array.from(new Uint8Array(buffer));
-    };
-
     // 字符串转 UTF-8 字节数组，优化性能
     utils.string2utf8 = (str) => {
         if (typeof str !== 'string') {

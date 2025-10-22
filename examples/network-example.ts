@@ -258,8 +258,8 @@ async function runExample() {
       const data = {
         account: "robot3"
       }
-      // const token = await jwtSign(data, secret, "HS512", 60);
-      const token = "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJhY2NvdW50Ijoicm9ib3QzIiwiaWF0IjoxNzYxMDQ0MTIzLCJleHAiOjE3NjEwNDQxODN9.a81G0g0iYM2oLZA-3rjqouZHGha_j2If7ZRvWTI5PyygZ9uZ21HaaOvmVAVNFCpNUJpflm6IClTPkKPXygz-AQ";
+      const token = await jwtSign(data, secret, "HS512", 60);
+      // const token = "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJhY2NvdW50Ijoicm9ib3QzIiwiaWF0IjoxNzYxMDQ0MTIzLCJleHAiOjE3NjEwNDQxODN9.a81G0g0iYM2oLZA-3rjqouZHGha_j2If7ZRvWTI5PyygZ9uZ21HaaOvmVAVNFCpNUJpflm6IClTPkKPXygz-AQ";
       console.log("token", token);
       const loginResult = await client.login(token);
       console.log('登录成功:', loginResult);
