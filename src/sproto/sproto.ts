@@ -1,6 +1,69 @@
-// sproto.ts 解析 - TypeScript 版本
+// sproto.ts - TypeScript版本的sproto协议解析库
 
 // 类型定义
+type SprotoValue = string | number | boolean | number[] | Record<string, unknown> | null;
+
+interface SprotoUserData {
+    deep?: number;
+    array_tag?: string | null;
+    array_index?: number;
+    result?: Record<string, unknown>;
+    st?: SprotoType;
+    tbl_index?: number;
+    indata?: Record<string, unknown>;
+    iter_index?: number;
+    mainindex_tag?: number;
+    key_index?: number;
+    [key: string]: unknown;
+}
+
+interface SprotoHost {
+    proto: SprotoInstance;
+    package: SprotoType | string;
+    session: Record<number, SprotoType | boolean>;
+    attachsp?: SprotoInstance;
+    attach: (sp: SprotoInstance) => (name: string, args: Record<string, unknown>, session: number) => number[];
+    dispatch: (buffer: number[]) => SprotoDispatchResult;
+}
+
+interface SprotoDispatchResult {
+    type: 'REQUEST' | 'RESPONSE';
+    pname?: string;
+    result?: Record<string, unknown>;
+    responseFunc?: (args: Record<string, unknown>) => number[];
+    session?: number;
+}
+
+interface SprotoProtocolInfo {
+    tag: number;
+    name: string;
+    request: SprotoType | null;
+    response: SprotoType | null;
+}
+
+interface SprotoConstants {
+    readonly SPROTO_REQUEST: 0;
+    readonly SPROTO_RESPONSE: 1;
+    readonly SPROTO_TINTEGER: 0;
+    readonly SPROTO_TBOOLEAN: 1;
+    readonly SPROTO_TSTRING: 2;
+    readonly SPROTO_TDOUBLE: 3;
+    readonly SPROTO_TSTRUCT: 4;
+    readonly SPROTO_TSTRING_STRING: 0;
+    readonly SPROTO_TSTRING_BINARY: 1;
+    readonly SPROTO_CB_ERROR: -1;
+    readonly SPROTO_CB_NIL: -2;
+    readonly SPROTO_CB_NOARRAY: -3;
+    readonly SPROTO_TARRAY: 0x80;
+    readonly CHUNK_SIZE: 1000;
+    readonly SIZEOF_LENGTH: 4;
+    readonly SIZEOF_HEADER: 2;
+    readonly SIZEOF_FIELD: 2;
+    readonly ENCODE_BUFFERSIZE: 2050;
+    readonly ENCODE_MAXSIZE: 0x1000000;
+    readonly ENCODE_DEEPLEVEL: 64;
+}
+
 interface SprotoField {
     tag: number;
     type: number;
@@ -25,27 +88,8 @@ interface SprotoProtocol {
     confirm: number;
 }
 
-interface SprotoInstance {
-    type_n: number;
-    protocol_n: number;
-    type: SprotoType[] | null;
-    proto: SprotoProtocol[] | null;
-    tcache: Map<string, SprotoType>;
-    pcache: Map<string | number, any>;
-    queryproto: (protocolName: string | number) => any;
-    dump: () => void;
-    objlen: (type: string | number | SprotoType, inbuf: number[]) => number | null;
-    encode: (type: string | number | SprotoType, indata: any) => number[] | null;
-    decode: (type: string | number | SprotoType, inbuf: number[]) => any | null;
-    pack: (inbuf: number[]) => number[];
-    unpack: (inbuf: number[]) => number[];
-    pencode: (type: string | number | SprotoType, inbuf: any) => number[] | null;
-    pdecode: (type: string | number | SprotoType, inbuf: number[]) => any | null;
-    host: (packagename?: string) => any;
-}
-
 interface SprotoArgs {
-    ud?: any;
+    ud?: SprotoUserData;
     tagname?: string;
     tagid?: number;
     type?: number;
@@ -53,10 +97,29 @@ interface SprotoArgs {
     mainindex?: number;
     extra?: number;
     index?: number;
-    value?: any;
+    value?: SprotoValue;
     length?: number;
     buffer?: number[];
     buffer_idx?: number;
+}
+
+interface SprotoInstance {
+    type_n: number;
+    protocol_n: number;
+    type: SprotoType[] | null;
+    proto: SprotoProtocol[] | null;
+    tcache: Map<string | number, SprotoType>;
+    pcache: Map<string | number, SprotoProtocolInfo>;
+    queryproto: (protocolName: string | number) => SprotoProtocolInfo | null;
+    dump: () => void;
+    objlen: (type: string | number | SprotoType, inbuf: number[]) => number | null;
+    encode: (type: string | number | SprotoType, indata: Record<string, unknown>) => number[] | null;
+    decode: (type: string | number | SprotoType, inbuf: number[]) => Record<string, unknown> | null;
+    pack: (inbuf: number[]) => number[];
+    unpack: (inbuf: number[]) => number[];
+    pencode: (type: string | number | SprotoType, inbuf: Record<string, unknown>) => number[] | null;
+    pdecode: (type: string | number | SprotoType, inbuf: number[]) => Record<string, unknown> | null;
+    host: (packagename?: string) => SprotoHost;
 }
 
 interface SprotoAPI {
@@ -65,37 +128,30 @@ interface SprotoAPI {
     createNew: (binsch: number[]) => SprotoInstance | null;
 }
 
-const sproto = ((): SprotoAPI => {
+const sproto = (() => {
     const api: SprotoAPI = {} as SprotoAPI;
-    const host: any = {};
-    let headerTemp: any = {};
+    const host: Partial<SprotoHost> = {};
+    let headerTemp: Record<string, unknown> = {};
 
     // 常量定义
-    const CONSTANTS = {
+    const CONSTANTS: SprotoConstants = {
         SPROTO_REQUEST: 0,
         SPROTO_RESPONSE: 1,
-
-        // type (sproto_arg.type)
         SPROTO_TINTEGER: 0,
         SPROTO_TBOOLEAN: 1,
         SPROTO_TSTRING: 2,
         SPROTO_TDOUBLE: 3,
         SPROTO_TSTRUCT: 4,
-
-        // sub type of string (sproto_arg.extra)
         SPROTO_TSTRING_STRING: 0,
         SPROTO_TSTRING_BINARY: 1,
-
         SPROTO_CB_ERROR: -1,
         SPROTO_CB_NIL: -2,
         SPROTO_CB_NOARRAY: -3,
-
         SPROTO_TARRAY: 0x80,
         CHUNK_SIZE: 1000,
         SIZEOF_LENGTH: 4,
         SIZEOF_HEADER: 2,
         SIZEOF_FIELD: 2,
-
         ENCODE_BUFFERSIZE: 2050,
         ENCODE_MAXSIZE: 0x1000000,
         ENCODE_DEEPLEVEL: 64
@@ -103,7 +159,6 @@ const sproto = ((): SprotoAPI => {
 
     // 工具函数
     const utils = {
-        // js中只long只能表示到2^52-1, 0xFFFFFFFFFFFFF表示
         expand64: (v: number): number => {
             const value = v;
             if ((value & 0x80000000) !== 0) {
@@ -114,7 +169,6 @@ const sproto = ((): SprotoAPI => {
 
         hiLowUint64: (low: number, hi: number): number => (hi & 0xFFFFFFFF) * 0x100000000 + low,
 
-        // 64位整数位移操作会将64位截成32位有符号整数
         uint64Lshift: (num: number, offset: number): number => num * Math.pow(2, offset),
 
         uint64Rshift: (num: number, offset: number): number => Math.floor(num / Math.pow(2, offset)),
@@ -128,8 +182,6 @@ const sproto = ((): SprotoAPI => {
             ((stream[3] & 0xff) << 24)
         ) >>> 0,
 
-        // 从 netutils.js 移动过来的接口
-        // 字符串转 UTF-8 字节数组，优化性能
         string2utf8: (str: string): number[] => {
             if (typeof str !== 'string') {
                 throw new TypeError('Expected a string');
@@ -159,7 +211,6 @@ const sproto = ((): SprotoAPI => {
             return result;
         },
 
-        // UTF-8 字节数组转字符串，优化性能和错误处理
         utf82string: (arr: number[]): string | null => {
             if (typeof arr === 'string') {
                 return null;
@@ -176,18 +227,15 @@ const sproto = ((): SprotoAPI => {
                 const byte1 = arr[i];
                 
                 if (byte1 < 0x80) {
-                    // 单字节字符
                     result += String.fromCharCode(byte1);
                     i++;
                 } else if ((byte1 & 0xe0) === 0xc0) {
-                    // 双字节字符
                     if (i + 1 >= arr.length) break;
                     const byte2 = arr[i + 1];
                     const codePoint = ((byte1 & 0x1f) << 6) | (byte2 & 0x3f);
                     result += String.fromCharCode(codePoint);
                     i += 2;
                 } else if ((byte1 & 0xf0) === 0xe0) {
-                    // 三字节字符
                     if (i + 2 >= arr.length) break;
                     const byte2 = arr[i + 1];
                     const byte3 = arr[i + 2];
@@ -195,7 +243,6 @@ const sproto = ((): SprotoAPI => {
                     result += String.fromCharCode(codePoint);
                     i += 3;
                 } else {
-                    // 无效字节，跳过
                     i++;
                 }
             }
@@ -203,7 +250,6 @@ const sproto = ((): SprotoAPI => {
             return result;
         },
 
-        // 数组连接，使用现代语法
         arrayconcat: (a1: number[], a2: number[]): number[] => {
             if (!Array.isArray(a1) || !Array.isArray(a2)) {
                 throw new TypeError('Both arguments must be arrays');
@@ -211,6 +257,10 @@ const sproto = ((): SprotoAPI => {
             return [...a1, ...a2];
         }
     };
+
+    function calcPow(base: number, exp: number): number {
+        return Math.pow(base, exp);
+    }
 
     const countArray = (stream: number[]): number => {
         const length = utils.toDword(stream);
@@ -275,18 +325,13 @@ const sproto = ((): SprotoAPI => {
         return fn;
     };
 
-    // 导入字符串 - stream 是arraybuffer
-    const importString = (s: any, stream: number[]): string => {
+    const importString = (s: SprotoInstance, stream: number[]): string => {
         const sz = utils.toDword(stream);
         const arr = stream.slice(CONSTANTS.SIZEOF_LENGTH, CONSTANTS.SIZEOF_LENGTH + sz);
         return String.fromCharCode(...arr);
     };
 
-    function calc_pow(base: number, exp: number): number {
-        return Math.pow(base, exp);
-    }
-
-    function import_field(s: any, f: SprotoField, stream: number[]): number[] | null {
+    function importField(s: SprotoInstance, f: SprotoField, stream: number[]): number[] | null {
         let sz: number, result: number[], fn: number;
         let array = 0;
         let tag = -1;
@@ -330,7 +375,7 @@ const sproto = ((): SprotoAPI => {
                     break;
                 case 2:
                     if (f.type === CONSTANTS.SPROTO_TINTEGER) {
-                        f.extra = calc_pow(10, value);
+                        f.extra = calcPow(10, value);
                     } else if (f.type === CONSTANTS.SPROTO_TSTRING) {
                         f.extra = value;
                     } else {
@@ -368,7 +413,7 @@ const sproto = ((): SprotoAPI => {
         return result;
     }
 
-    function import_type(s: any, t: SprotoType, stream: number[]): number[] | null {
+    function importType(s: SprotoInstance, t: SprotoType, stream: number[]): number[] | null {
         let result: number[], fn: number, n: number, maxn: number, last: number;
         const sz = utils.toDword(stream);
         stream = stream.slice(CONSTANTS.SIZEOF_LENGTH);
@@ -405,12 +450,12 @@ const sproto = ((): SprotoAPI => {
         maxn = n;
         last = -1;
         t.n = n;
-        t.f = new Array<SprotoField>();
+        t.f = [];
         for (let i = 0; i < n; i++) {
             let tag: number;
             t.f[i] = {} as SprotoField;
             const f = t.f[i];
-            const newStream = import_field(s, f, stream);
+            const newStream = importField(s, f, stream);
             if (newStream === null) {
                 return null;
             }
@@ -434,15 +479,7 @@ const sproto = ((): SprotoAPI => {
         return result;
     }
 
-    /*
-    .protocol {
-        name 0 : string
-        tag 1 : integer
-        request 2 : integer
-        response 3 : integer
-    }
-    */
-    function import_protocol(s: any, p: SprotoProtocol, stream: number[]): number[] | null {
+    function importProtocol(s: SprotoInstance, p: SprotoProtocol, stream: number[]): number[] | null {
         let result: number[], sz: number, fn: number, tag: number;
         sz = utils.toDword(stream);
         stream = stream.slice(CONSTANTS.SIZEOF_LENGTH);
@@ -451,7 +488,7 @@ const sproto = ((): SprotoAPI => {
         stream = stream.slice(CONSTANTS.SIZEOF_HEADER);
         p.name = null;
         p.tag = -1;
-        p.p = new Array<SprotoType | null>();
+        p.p = [];
         p.p[CONSTANTS.SPROTO_REQUEST] = null;
         p.p[CONSTANTS.SPROTO_RESPONSE] = null;
         p.confirm = 0;
@@ -479,12 +516,12 @@ const sproto = ((): SprotoAPI => {
                 case 2:
                     if (value < 0 || value >= s.type_n)
                         return null;
-                    p.p[CONSTANTS.SPROTO_REQUEST] = s.type[value];
+                    p.p[CONSTANTS.SPROTO_REQUEST] = s.type?.[value] || null;
                     break;
                 case 3:
                     if (value < 0 || value > s.type_n)
                         return null;
-                    p.p[CONSTANTS.SPROTO_RESPONSE] = s.type[value];
+                    p.p[CONSTANTS.SPROTO_RESPONSE] = s.type?.[value] || null;
                     break;
                 case 4:
                     p.confirm = value;
@@ -500,7 +537,7 @@ const sproto = ((): SprotoAPI => {
         return result;
     }
 
-    function create_from_bundle(s: any, stream: number[], sz: number): any | null {
+    function createFromBundle(s: SprotoInstance, stream: number[], sz: number): SprotoInstance | null {
         let content: number[], typedata: number[], protocoldata: number[];
         const fn = structField(stream, sz);
         if (fn < 0 || fn > 2)
@@ -522,42 +559,46 @@ const sproto = ((): SprotoAPI => {
             if (i === 0) {
                 typedata = content.slice(CONSTANTS.SIZEOF_LENGTH);
                 s.type_n = n;
-                s.type = new Array<SprotoType>();
+                s.type = [];
             } else {
                 protocoldata = content.slice(CONSTANTS.SIZEOF_LENGTH);
                 s.protocol_n = n;
-                s.proto = new Array<SprotoProtocol>();
+                s.proto = [];
             }
             content = content.slice(utils.toDword(content) + CONSTANTS.SIZEOF_LENGTH);
         }
 
         for (let i = 0; i < s.type_n; i++) {
-            s.type[i] = {} as SprotoType;
-            const newTypedata = import_type(s, s.type[i], typedata!);
-            if (newTypedata === null) {
-                return null;
+            if (s.type) {
+                s.type[i] = {} as SprotoType;
+                const newTypedata = importType(s, s.type[i], typedata!);
+                if (newTypedata === null) {
+                    return null;
+                }
+                typedata = newTypedata;
             }
-            typedata = newTypedata;
         }
 
         for (let i = 0; i < s.protocol_n; i++) {
-            s.proto[i] = {} as SprotoProtocol;
-            const newProtocoldata = import_protocol(s, s.proto[i], protocoldata!);
-            if (newProtocoldata === null) {
-                return null;
+            if (s.proto) {
+                s.proto[i] = {} as SprotoProtocol;
+                const newProtocoldata = importProtocol(s, s.proto[i], protocoldata!);
+                if (newProtocoldata === null) {
+                    return null;
+                }
+                protocoldata = newProtocoldata;
             }
-            protocoldata = newProtocoldata;
         }
 
         return s;
     }
 
-    function sproto_dump(s: any): void {
+    function sprotoDump(s: SprotoInstance): void {
         console.log(s);
     }
 
-    // query
-    function sproto_prototag(sp: any, name: string): number {
+    function sprotoProtoTag(sp: SprotoInstance, name: string): number {
+        if (!sp.proto) return -1;
         for (let i = 0; i < sp.protocol_n; i++) {
             if (name === sp.proto[i].name) {
                 return sp.proto[i].tag;
@@ -566,8 +607,8 @@ const sproto = ((): SprotoAPI => {
         return -1;
     }
 
-    // 二分查找
-    function query_proto(sp: any, tag: number): SprotoProtocol | null {
+    function queryProto(sp: SprotoInstance, tag: number): SprotoProtocol | null {
+        if (!sp.proto) return null;
         let begin = 0;
         let end = sp.protocol_n;
         while (begin < end) {
@@ -586,46 +627,46 @@ const sproto = ((): SprotoAPI => {
         return null;
     }
 
-    function sproto_protoquery(sp: any, proto: number, what: number): SprotoType | null {
+    function sprotoProtoQuery(sp: SprotoInstance, proto: number, what: number): SprotoType | null {
         if (what < 0 || what > 1) {
             return null;
         }
 
-        const p = query_proto(sp, proto);
+        const p = queryProto(sp, proto);
         if (p) {
             return p.p[what];
         }
         return null;
     }
 
-    function sproto_protoresponse(sp: any, proto: number): boolean {
-        const p = query_proto(sp, proto);
-        return (p !== null && (p.p[CONSTANTS.SPROTO_RESPONSE] || p.confirm));
+    function sprotoProtoResponse(sp: SprotoInstance, proto: number): boolean {
+        const p = queryProto(sp, proto);
+        return (p !== null && (!!p.p[CONSTANTS.SPROTO_RESPONSE] || !!p.confirm));
     }
 
-    function sproto_protoname(sp: any, proto: number): string | null {
-        const p = query_proto(sp, proto);
+    function sprotoProtoName(sp: SprotoInstance, proto: number): string | null {
+        const p = queryProto(sp, proto);
         if (p) {
             return p.name;
         }
         return null;
     }
 
-    function sproto_type(sp: any, type_name: string): SprotoType | null {
+    function sprotoType(sp: SprotoInstance, typeName: string): SprotoType | null {
+        if (!sp.type) return null;
         for (let i = 0; i < sp.type_n; i++) {
-            if (type_name === sp.type[i].name) {
+            if (typeName === sp.type[i].name) {
                 return sp.type[i];
             }
         }
         return null;
     }
 
-    function sproto_name(st: SprotoType): string | null {
+    function sprotoName(st: SprotoType): string | null {
         return st.name;
     }
 
-    function findtag(st: SprotoType, tag: number): SprotoField | null {
-        let begin: number, end: number;
+    function findTag(st: SprotoType, tag: number): SprotoField | null {
         if (st.base >= 0) {
             tag -= st.base;
             if (tag < 0 || tag > st.n) {
@@ -634,8 +675,8 @@ const sproto = ((): SprotoAPI => {
             return st.f![tag];
         }
 
-        begin = 0;
-        end = st.n;
+        let begin = 0;
+        let end = st.n;
         while (begin < end) {
             const mid = Math.floor((begin + end) / 2);
             const f = st.f![mid];
@@ -652,50 +693,49 @@ const sproto = ((): SprotoAPI => {
         return null;
     }
 
-    function fill_size(data: number[], data_idx: number, sz: number): number {
-        data[data_idx] = sz & 0xff;
-        data[data_idx + 1] = (sz >> 8) & 0xff;
-        data[data_idx + 2] = (sz >> 16) & 0xff;
-        data[data_idx + 3] = (sz >> 24) & 0xff;
+    function fillSize(data: number[], dataIdx: number, sz: number): number {
+        data[dataIdx] = sz & 0xff;
+        data[dataIdx + 1] = (sz >> 8) & 0xff;
+        data[dataIdx + 2] = (sz >> 16) & 0xff;
+        data[dataIdx + 3] = (sz >> 24) & 0xff;
         return sz + CONSTANTS.SIZEOF_LENGTH;
     }
 
-    function encode_integer(v: number, data: number[], data_idx: number, size: number): number {
-        data[data_idx + 4] = v & 0xff;
-        data[data_idx + 5] = (v >> 8) & 0xff;
-        data[data_idx + 6] = (v >> 16) & 0xff;
-        data[data_idx + 7] = (v >> 24) & 0xff;
-        return fill_size(data, data_idx, 4);
+    function encodeInteger(v: number, data: number[], dataIdx: number, size: number): number {
+        data[dataIdx + 4] = v & 0xff;
+        data[dataIdx + 5] = (v >> 8) & 0xff;
+        data[dataIdx + 6] = (v >> 16) & 0xff;
+        data[dataIdx + 7] = (v >> 24) & 0xff;
+        return fillSize(data, dataIdx, 4);
     }
 
-    function encode_uint64(v: number, data: number[], data_idx: number, size: number): number {
-        data[data_idx + 4] = v & 0xff;
-        data[data_idx + 5] = utils.uint64Rshift(v, 8) & 0xff;
-        data[data_idx + 6] = utils.uint64Rshift(v, 16) & 0xff;
-        data[data_idx + 7] = utils.uint64Rshift(v, 24) & 0xff;
-        data[data_idx + 8] = utils.uint64Rshift(v, 32) & 0xff;
-        data[data_idx + 9] = utils.uint64Rshift(v, 40) & 0xff;
-        data[data_idx + 10] = utils.uint64Rshift(v, 48) & 0xff;
-        data[data_idx + 11] = utils.uint64Rshift(v, 56) & 0xff;
-        return fill_size(data, data_idx, 8);
+    function encodeUint64(v: number, data: number[], dataIdx: number, size: number): number {
+        data[dataIdx + 4] = v & 0xff;
+        data[dataIdx + 5] = utils.uint64Rshift(v, 8) & 0xff;
+        data[dataIdx + 6] = utils.uint64Rshift(v, 16) & 0xff;
+        data[dataIdx + 7] = utils.uint64Rshift(v, 24) & 0xff;
+        data[dataIdx + 8] = utils.uint64Rshift(v, 32) & 0xff;
+        data[dataIdx + 9] = utils.uint64Rshift(v, 40) & 0xff;
+        data[dataIdx + 10] = utils.uint64Rshift(v, 48) & 0xff;
+        data[dataIdx + 11] = utils.uint64Rshift(v, 56) & 0xff;
+        return fillSize(data, dataIdx, 8);
     }
 
-    function dec_to_bin_tail(dec: number, pad: number): string {
+    function decToBinTail(dec: number, pad: number): string {
         let bin = "";
         for (let i = 0; i < pad; i++) {
             dec *= 2;
             if (dec >= 1) {
                 dec -= 1;
                 bin += "1";
-            }
-            else {
+            } else {
                 bin += "0";
             }
         }
         return bin;
     }
 
-    function dec_to_bin_head(data: number, len: number): string {
+    function decToBinHead(data: number, len: number): string {
         let result = "";
         for (let i = len - 1; i >= 0; i--) {
             const mask = 1 << i;
@@ -708,11 +748,11 @@ const sproto = ((): SprotoAPI => {
         return result;
     }
 
-    function get_double_hex(decString: string | number): string {
+    function getDoubleHex(decString: string): string {
         let sign: number;
         let signString: string;
         let exponent: number;
-        const decValue = parseFloat(Math.abs(Number(decString)).toString());
+        const decValue = parseFloat(Math.abs(parseFloat(decString)).toString());
         if (decString.toString().charAt(0) === '-') {
             sign = 1;
             signString = "1";
@@ -740,14 +780,14 @@ const sproto = ((): SprotoAPI => {
                 }
             }
             if (exponent !== 0) tempDecValue -= 1; else tempDecValue /= 2;
-            const fractionString = dec_to_bin_tail(tempDecValue, 52);
-            const exponentString = dec_to_bin_head(exponent, 11);
+            const fractionString = decToBinTail(tempDecValue, 52);
+            const exponentString = decToBinHead(exponent, 11);
             const doubleBinStr = signString + exponentString + fractionString;
             let doubleHexStr = "";
             for (let i = 0, j = 0; i < 8; i++, j += 8) {
                 const m = 3 - (j % 4);
-                const hexUnit = Number(doubleBinStr[j]) * Math.pow(2, m) + Number(doubleBinStr[j + 1]) * Math.pow(2, m - 1) + Number(doubleBinStr[j + 2]) * Math.pow(2, m - 2) + Number(doubleBinStr[j + 3]) * Math.pow(2, m - 3);
-                const hexDecade = Number(doubleBinStr[j + 4]) * Math.pow(2, m) + Number(doubleBinStr[j + 5]) * Math.pow(2, m - 1) + Number(doubleBinStr[j + 6]) * Math.pow(2, m - 2) + Number(doubleBinStr[j + 7]) * Math.pow(2, m - 3);
+                const hexUnit = parseInt(doubleBinStr[j]) * Math.pow(2, m) + parseInt(doubleBinStr[j + 1]) * Math.pow(2, m - 1) + parseInt(doubleBinStr[j + 2]) * Math.pow(2, m - 2) + parseInt(doubleBinStr[j + 3]) * Math.pow(2, m - 3);
+                const hexDecade = parseInt(doubleBinStr[j + 4]) * Math.pow(2, m) + parseInt(doubleBinStr[j + 5]) * Math.pow(2, m - 1) + parseInt(doubleBinStr[j + 6]) * Math.pow(2, m - 2) + parseInt(doubleBinStr[j + 7]) * Math.pow(2, m - 3);
                 doubleHexStr = doubleHexStr + hexUnit.toString(16) + hexDecade.toString(16);
             }
             return doubleHexStr;
@@ -755,33 +795,39 @@ const sproto = ((): SprotoAPI => {
         return "";
     }
 
-    function double_to_binary(v: number, data: number[], data_idx: number): number {
+    function doubleToBinary(v: number, data: number[], dataIdx: number): number {
         const str = Number(v).toString();
-        const hexStr = get_double_hex(str);
+        const hexStr = getDoubleHex(str);
+        if (!hexStr) {
+            // Handle case where getDoubleHex returns empty string
+            for (let i = 0; i < 8; i++) {
+                data[dataIdx + i + 4] = 0;
+            }
+            return fillSize(data, dataIdx, 8);
+        }
         const arr: number[] = [];
         for (let i = 0, j = 0; i < 8; i++, j += 2) {
-            const dec = parseInt(hexStr[j], 16) * 16 + parseInt(hexStr[j + 1], 16);
+            const dec = parseInt(hexStr[j] || '0', 16) * 16 + parseInt(hexStr[j + 1] || '0', 16);
             arr.push(dec);
         }
         arr.reverse();
         for (let i = 0; i < 8; i++) {
-            const dec = arr[i];
-            data[data_idx + i + 4] = dec;
+            const dec = arr[i] || 0;
+            data[dataIdx + i + 4] = dec;
         }
-        return fill_size(data, data_idx, 8);
+        return fillSize(data, dataIdx, 8);
     }
 
-    function binary_to_double(data: number[]): number {
+    function binaryToDouble(data: number[]): number {
         const buf = new Uint8Array(data);
-        // buf.reverse();
         const buf64 = new Float64Array(buf.buffer);
         return buf64[0];
     }
 
-    function encode_object(cb: (args: SprotoArgs) => number, args: SprotoArgs, data: number[], data_idx: number): number {
+    function encodeObject(cb: (args: SprotoArgs) => number, args: SprotoArgs, data: number[], dataIdx: number): number {
         let sz: number;
         args.buffer = data;
-        args.buffer_idx = data_idx + CONSTANTS.SIZEOF_LENGTH;
+        args.buffer_idx = dataIdx + CONSTANTS.SIZEOF_LENGTH;
         sz = cb(args);
         if (sz < 0) {
             if (sz === CONSTANTS.SPROTO_CB_NIL) {
@@ -789,33 +835,33 @@ const sproto = ((): SprotoAPI => {
             }
             return -1;
         }
-        return fill_size(data, data_idx, sz);
+        return fillSize(data, dataIdx, sz);
     }
 
-    function uint32_to_uint64(negative: boolean, buffer: number[], buffer_idx: number): void {
+    function uint32ToUint64(negative: boolean, buffer: number[], bufferIdx: number): void {
         if (negative) {
-            buffer[buffer_idx + 4] = 0xff;
-            buffer[buffer_idx + 5] = 0xff;
-            buffer[buffer_idx + 6] = 0xff;
-            buffer[buffer_idx + 7] = 0xff;
+            buffer[bufferIdx + 4] = 0xff;
+            buffer[bufferIdx + 5] = 0xff;
+            buffer[bufferIdx + 6] = 0xff;
+            buffer[bufferIdx + 7] = 0xff;
         } else {
-            buffer[buffer_idx + 4] = 0;
-            buffer[buffer_idx + 5] = 0;
-            buffer[buffer_idx + 6] = 0;
-            buffer[buffer_idx + 7] = 0;
+            buffer[bufferIdx + 4] = 0;
+            buffer[bufferIdx + 5] = 0;
+            buffer[bufferIdx + 6] = 0;
+            buffer[bufferIdx + 7] = 0;
         }
     }
 
-    function encode_integer_array(cb: (args: SprotoArgs) => number, args: SprotoArgs, buffer: number[], buffer_idx: number, noarray: { value: number }): number | null {
+    function encodeIntegerArray(cb: (args: SprotoArgs) => number, args: SprotoArgs, buffer: number[], bufferIdx: number, noarray: { value: number }): number | null {
         let intlen: number, index: number;
-        const header_idx = buffer_idx;
+        const headerIdx = bufferIdx;
 
-        buffer_idx++;
+        bufferIdx++;
         intlen = 4;
         index = 1;
         noarray.value = 0;
 
-        for (; ;) {
+        for (;;) {
             let sz: number;
             args.value = null;
             args.length = 8;
@@ -836,13 +882,13 @@ const sproto = ((): SprotoAPI => {
 
             if (sz === 4) {
                 const v = args.value;
-                buffer[buffer_idx] = v & 0xff;
-                buffer[buffer_idx + 1] = (v >> 8) & 0xff;
-                buffer[buffer_idx + 2] = (v >> 16) & 0xff;
-                buffer[buffer_idx + 3] = (v >> 24) & 0xff;
+                buffer[bufferIdx] = v & 0xff;
+                buffer[bufferIdx + 1] = (v >> 8) & 0xff;
+                buffer[bufferIdx + 2] = (v >> 16) & 0xff;
+                buffer[bufferIdx + 3] = (v >> 24) & 0xff;
 
                 if (intlen === 8) {
-                    uint32_to_uint64(v & 0x80000000, buffer, buffer_idx);
+                    uint32ToUint64((v & 0x80000000) !== 0, buffer, bufferIdx);
                 }
             } else {
                 if (sz !== 8) {
@@ -850,52 +896,52 @@ const sproto = ((): SprotoAPI => {
                 }
 
                 if (intlen === 4) {
-                    buffer_idx += (index - 1) * 4;
+                    bufferIdx += (index - 1) * 4;
                     for (let i = index - 2; i >= 0; i--) {
                         let negative: boolean;
                         for (let j = (1 + i * 8); j < (1 + i * 8 + 4); j++) {
-                            buffer[header_idx + j] = buffer[header_idx + j - i * 4];
+                            buffer[headerIdx + j] = buffer[headerIdx + j - i * 4];
                         }
-                        negative = (buffer[header_idx + 1 + i * 8 + 3] & 0x80) !== 0;
-                        uint32_to_uint64(negative, buffer, header_idx + 1 + i * 8);
+                        negative = (buffer[headerIdx + 1 + i * 8 + 3] & 0x80) !== 0;
+                        uint32ToUint64(negative, buffer, headerIdx + 1 + i * 8);
                     }
                     intlen = 8;
                 }
 
                 const v = args.value;
-                buffer[buffer_idx] = v & 0xff;
-                buffer[buffer_idx + 1] = utils.uint64Rshift(v, 8) & 0xff;
-                buffer[buffer_idx + 2] = utils.uint64Rshift(v, 16) & 0xff;
-                buffer[buffer_idx + 3] = utils.uint64Rshift(v, 24) & 0xff;
-                buffer[buffer_idx + 4] = utils.uint64Rshift(v, 32) & 0xff;
-                buffer[buffer_idx + 5] = utils.uint64Rshift(v, 40) & 0xff;
-                buffer[buffer_idx + 6] = utils.uint64Rshift(v, 48) & 0xff;
-                buffer[buffer_idx + 7] = utils.uint64Rshift(v, 56) & 0xff;
+                buffer[bufferIdx] = v & 0xff;
+                buffer[bufferIdx + 1] = utils.uint64Rshift(v, 8) & 0xff;
+                buffer[bufferIdx + 2] = utils.uint64Rshift(v, 16) & 0xff;
+                buffer[bufferIdx + 3] = utils.uint64Rshift(v, 24) & 0xff;
+                buffer[bufferIdx + 4] = utils.uint64Rshift(v, 32) & 0xff;
+                buffer[bufferIdx + 5] = utils.uint64Rshift(v, 40) & 0xff;
+                buffer[bufferIdx + 6] = utils.uint64Rshift(v, 48) & 0xff;
+                buffer[bufferIdx + 7] = utils.uint64Rshift(v, 56) & 0xff;
             }
 
-            buffer_idx += intlen;
+            bufferIdx += intlen;
             index++;
         }
 
-        if (buffer_idx === header_idx + 1) {
-            return header_idx;
+        if (bufferIdx === headerIdx + 1) {
+            return headerIdx;
         }
-        buffer[header_idx] = intlen & 0xff;
-        return buffer_idx;
+        buffer[headerIdx] = intlen & 0xff;
+        return bufferIdx;
     }
 
-    function encode_array(cb: (args: SprotoArgs) => number, args: SprotoArgs, data: number[], data_idx: number): number {
+    function encodeArray(cb: (args: SprotoArgs) => number, args: SprotoArgs, data: number[], dataIdx: number): number {
         let sz: number;
         const buffer = data;
-        let buffer_idx = data_idx + CONSTANTS.SIZEOF_LENGTH;
+        let bufferIdx = dataIdx + CONSTANTS.SIZEOF_LENGTH;
         switch (args.type) {
             case CONSTANTS.SPROTO_TINTEGER:
                 const noarray = { value: 0 };
-                const result = encode_integer_array(cb, args, buffer, buffer_idx, noarray);
+                const result = encodeIntegerArray(cb, args, buffer, bufferIdx, noarray);
                 if (result === null) {
                     return -1;
                 }
-                buffer_idx = result;
+                bufferIdx = result;
 
                 if (noarray.value !== 0) {
                     return 0;
@@ -903,8 +949,8 @@ const sproto = ((): SprotoAPI => {
                 break;
             case CONSTANTS.SPROTO_TBOOLEAN:
                 args.index = 1;
-                for (; ;) {
-                    const v = 0;
+                for (;;) {
+                    let v = 0;
                     args.value = v;
                     args.length = 4;
                     sz = cb(args);
@@ -920,16 +966,16 @@ const sproto = ((): SprotoAPI => {
                         return -1;
                     }
 
-                    buffer[buffer_idx] = (args.value === 1) ? 1 : 0;
-                    buffer_idx++;
+                    buffer[bufferIdx] = (args.value === 1) ? 1 : 0;
+                    bufferIdx++;
                     ++args.index!;
                 }
                 break;
             default:
                 args.index = 1;
-                for (; ;) {
+                for (;;) {
                     args.buffer = buffer;
-                    args.buffer_idx = buffer_idx + CONSTANTS.SIZEOF_LENGTH;
+                    args.buffer_idx = bufferIdx + CONSTANTS.SIZEOF_LENGTH;
                     sz = cb(args);
                     if (sz < 0) {
                         if (sz === CONSTANTS.SPROTO_CB_NIL) {
@@ -943,22 +989,18 @@ const sproto = ((): SprotoAPI => {
                         return -1;
                     }
 
-                    fill_size(buffer, buffer_idx, sz);
-                    buffer_idx += CONSTANTS.SIZEOF_LENGTH + sz;
+                    fillSize(buffer, bufferIdx, sz);
+                    bufferIdx += CONSTANTS.SIZEOF_LENGTH + sz;
                     ++args.index!;
                 }
                 break;
         }
 
-        sz = buffer_idx - (data_idx + CONSTANTS.SIZEOF_LENGTH);
-        // if (sz == 0) {
-        //     return 0;
-        // }
-
-        return fill_size(buffer, data_idx, sz);
+        sz = bufferIdx - (dataIdx + CONSTANTS.SIZEOF_LENGTH);
+        return fillSize(buffer, dataIdx, sz);
     }
 
-    function decode_array_object(cb: (args: SprotoArgs) => number, args: SprotoArgs, stream: number[], sz: number): number {
+    function decodeArrayObject(cb: (args: SprotoArgs) => number, args: SprotoArgs, stream: number[], sz: number): number {
         let hsz: number;
         let index = 1;
         while (sz > 0) {
@@ -987,11 +1029,7 @@ const sproto = ((): SprotoAPI => {
         return 0;
     }
 
-    function hi_low_uint64(low: number, hi: number): number {
-        return utils.hiLowUint64(low, hi);
-    }
-
-    function decode_array(cb: (args: SprotoArgs) => number, args: SprotoArgs, stream: number[]): number {
+    function decodeArray(cb: (args: SprotoArgs) => number, args: SprotoArgs, stream: number[]): number {
         const sz = utils.toDword(stream);
         const type = args.type;
         if (sz === 0) {
@@ -1027,7 +1065,7 @@ const sproto = ((): SprotoAPI => {
                     for (let i = 0; i < Math.floor(remainingSz / 8); i++) {
                         const low = utils.toDword(stream.slice(i * 8));
                         const hi = utils.toDword(stream.slice(i * 8 + 4));
-                        const value = hi_low_uint64(low, hi);
+                        const value = utils.hiLowUint64(low, hi);
                         args.index = i + 1;
                         args.value = value;
                         args.length = 8;
@@ -1048,30 +1086,30 @@ const sproto = ((): SprotoAPI => {
                 break;
             case CONSTANTS.SPROTO_TSTRING:
             case CONSTANTS.SPROTO_TSTRUCT:
-                return decode_array_object(cb, args, stream, sz);
+                return decodeArrayObject(cb, args, stream, sz);
             default:
                 return -1;
         }
         return 0;
     }
 
-    function pack_seg(src: number[], src_idx: number, buffer: number[], buffer_idx: number, sz: number, n: number): number {
+    function packSeg(src: number[], srcIdx: number, buffer: number[], bufferIdx: number, sz: number, n: number): number {
         let header = 0;
         let notzero = 0;
-        const obuffer_idx = buffer_idx;
-        buffer_idx++;
+        const obufferIdx = bufferIdx;
+        bufferIdx++;
         sz--;
         if (sz < 0) {
-            return 10; // Return error size when buffer is too small
+            return 10;
         }
 
         for (let i = 0; i < 8; i++) {
-            if (src[src_idx + i] !== 0) {
+            if (src[srcIdx + i] !== 0) {
                 notzero++;
                 header |= 1 << i;
                 if (sz > 0) {
-                    buffer[buffer_idx] = src[src_idx + i];
-                    ++buffer_idx;
+                    buffer[bufferIdx] = src[srcIdx + i];
+                    ++bufferIdx;
                     --sz;
                 }
             }
@@ -1089,31 +1127,31 @@ const sproto = ((): SprotoAPI => {
             }
         }
 
-        buffer[obuffer_idx] = header;
-
+        buffer[obufferIdx] = header;
         return notzero + 1;
     }
 
-    function write_ff(src: number[], src_idx: number, des: number[], dest_idx: number, n: number): void {
-        const align8_n = (n + 7) & (~7);
-        des[dest_idx] = 0xff;
-        des[dest_idx + 1] = Math.floor(align8_n / 8) - 1;
+    function writeFf(src: number[], srcIdx: number, des: number[], destIdx: number, n: number): void {
+        const align8N = (n + 7) & (~7);
+        des[destIdx] = 0xff;
+        des[destIdx + 1] = Math.floor(align8N / 8) - 1;
 
         for (let i = 0; i < n; i++) {
-            des[dest_idx + i + 2] = src[src_idx + i];
+            des[destIdx + i + 2] = src[srcIdx + i];
         }
 
-        for (let i = 0; i < align8_n - n; i++) {
-            des[dest_idx + n + 2 + i] = 0;
+        for (let i = 0; i < align8N - n; i++) {
+            des[destIdx + n + 2 + i] = 0;
         }
     }
 
-    function sproto_pack(srcv: number[], src_idx: number, bufferv: number[], buffer_idx: number): number {
-        const tmp = new Array<number>(8);
-        let ff_srcstart: number[], ff_desstart: number[];
-        let ff_srcstart_idx = 0;
-        let ff_desstart_idx = 0;
-        let ff_n = 0;
+    function sprotoPack(srcv: number[], srcIdx: number, bufferv: number[], bufferIdx: number): number {
+        const tmp = new Array(8);
+        let ffSrcstart: number[] = [];
+        let ffDesstart: number[] = [];
+        let ffSrcstartIdx = 0;
+        let ffDesstartIdx = 0;
+        let ffN = 0;
         let size = 0;
         let src = srcv;
         const buffer = bufferv;
@@ -1125,7 +1163,7 @@ const sproto = ((): SprotoAPI => {
             const padding = i + 8 - srcsz;
             if (padding > 0) {
                 for (let j = 0; j < 8 - padding; j++) {
-                    tmp[j] = src[src_idx + j];
+                    tmp[j] = src[srcIdx + j];
                 }
 
                 for (let j = 0; j < padding; j++) {
@@ -1133,42 +1171,42 @@ const sproto = ((): SprotoAPI => {
                 }
 
                 src = tmp;
-                src_idx = 0;
+                srcIdx = 0;
             }
 
-            n = pack_seg(src, src_idx, buffer, buffer_idx, bufsz, ff_n);
+            n = packSeg(src, srcIdx, buffer, bufferIdx, bufsz, ffN);
             bufsz -= n;
             if (n === 10) {
-                ff_srcstart = src;
-                ff_srcstart_idx = src_idx;
-                ff_desstart = buffer;
-                ff_desstart_idx = buffer_idx;
-                ff_n = 1;
-            } else if (n === 8 && ff_n > 0) {
-                ++ff_n;
-                if (ff_n === 256) {
+                ffSrcstart = src;
+                ffSrcstartIdx = srcIdx;
+                ffDesstart = buffer;
+                ffDesstartIdx = bufferIdx;
+                ffN = 1;
+            } else if (n === 8 && ffN > 0) {
+                ++ffN;
+                if (ffN === 256) {
                     if (bufsz >= 0) {
-                        write_ff(ff_srcstart!, ff_srcstart_idx, ff_desstart!, ff_desstart_idx, 256 * 8);
+                        writeFf(ffSrcstart, ffSrcstartIdx, ffDesstart, ffDesstartIdx, 256 * 8);
                     }
-                    ff_n = 0;
+                    ffN = 0;
                 }
             } else {
-                if (ff_n > 0) {
+                if (ffN > 0) {
                     if (bufsz >= 0) {
-                        write_ff(ff_srcstart!, ff_srcstart_idx, ff_desstart!, ff_desstart_idx, ff_n * 8);
+                        writeFf(ffSrcstart, ffSrcstartIdx, ffDesstart, ffDesstartIdx, ffN * 8);
                     }
-                    ff_n = 0;
+                    ffN = 0;
                 }
             }
-            src_idx += 8;
-            buffer_idx += n;
+            srcIdx += 8;
+            bufferIdx += n;
             size += n;
         }
         if (bufsz >= 0) {
-            if (ff_n === 1) {
-                write_ff(ff_srcstart!, ff_srcstart_idx, ff_desstart!, ff_desstart_idx, 8);
-            } else if (ff_n > 1) {
-                write_ff(ff_srcstart!, ff_srcstart_idx, ff_desstart!, ff_desstart_idx, srcsz - ff_srcstart_idx);
+            if (ffN === 1) {
+                writeFf(ffSrcstart, ffSrcstartIdx, ffDesstart, ffDesstartIdx, 8);
+            } else if (ffN > 1) {
+                writeFf(ffSrcstart, ffSrcstartIdx, ffDesstart, ffDesstartIdx, srcsz - ffSrcstartIdx);
             }
             if (buffer.length > size) {
                 for (let i = size; i < buffer.length; i++) {
@@ -1179,37 +1217,37 @@ const sproto = ((): SprotoAPI => {
         return size;
     }
 
-    function sproto_unpack(srcv: number[], src_idx: number, bufferv: number[], buffer_idx: number): number {
+    function sprotoUnpack(srcv: number[], srcIdx: number, bufferv: number[], bufferIdx: number): number {
         const src = srcv;
         const buffer = bufferv;
         let size = 0;
         let srcsz = srcv.length;
         let bufsz = 1 << 30;
         while (srcsz > 0) {
-            const header = src[src_idx];
+            const header = src[srcIdx];
             --srcsz;
-            ++src_idx;
+            ++srcIdx;
             if (header === 0xff) {
                 let n: number;
                 if (srcsz < 0) {
                     return -1;
                 }
 
-                n = (src[src_idx] + 1) * 8;
+                n = (src[srcIdx] + 1) * 8;
                 if (srcsz < n + 1)
                     return -1;
 
                 srcsz -= n + 1;
-                ++src_idx;
+                ++srcIdx;
                 if (bufsz >= n) {
                     for (let i = 0; i < n; i++) {
-                        buffer[buffer_idx + i] = src[src_idx + i];
+                        buffer[bufferIdx + i] = src[srcIdx + i];
                     }
                 }
 
                 bufsz -= n;
-                buffer_idx += n;
-                src_idx += n;
+                bufferIdx += n;
+                srcIdx += n;
                 size += n;
             } else {
                 for (let i = 0; i < 8; i++) {
@@ -1219,18 +1257,18 @@ const sproto = ((): SprotoAPI => {
                             return -1;
 
                         if (bufsz > 0) {
-                            buffer[buffer_idx] = src[src_idx];
+                            buffer[bufferIdx] = src[srcIdx];
                             --bufsz;
-                            ++buffer_idx;
+                            ++bufferIdx;
                         }
 
-                        ++src_idx;
+                        ++srcIdx;
                         --srcsz;
                     } else {
                         if (bufsz > 0) {
-                            buffer[buffer_idx] = 0;
+                            buffer[bufferIdx] = 0;
                             --bufsz;
-                            ++buffer_idx;
+                            ++bufferIdx;
                         }
                     }
                     ++size;
@@ -1240,47 +1278,44 @@ const sproto = ((): SprotoAPI => {
         return size;
     }
 
-    ///////////////////////导出方法///////////////////////////////
-
+    // 导出方法
     api.pack = (inbuf: number[]): number[] => {
         const srcIdx = 0;
-        const buffer = new Array<number>();
+        const buffer: number[] = [];
         const bufferIdx = 0;
-        const size = sproto_pack(inbuf, srcIdx, buffer, bufferIdx);
+        sprotoPack(inbuf, srcIdx, buffer, bufferIdx);
         return buffer;
     };
 
     api.unpack = (inbuf: number[]): number[] => {
         const srcIdx = 0;
-        const buffer = new Array<number>();
+        const buffer: number[] = [];
         const bufferIdx = 0;
-        const size = sproto_unpack(inbuf, srcIdx, buffer, bufferIdx);
+        sprotoUnpack(inbuf, srcIdx, buffer, bufferIdx);
         return buffer;
     };
 
     api.createNew = (binsch: number[]): SprotoInstance | null => {
-        const s: any = {};
-        const result = new Object();
-        const __session = new Array<any>();
+        const s: Partial<SprotoInstance> = {};
         let enbuffer: number[];
         s.type_n = 0;
         s.protocol_n = 0;
         s.type = null;
         s.proto = null;
-        s.tcache = new Map<string, SprotoType>();
-        s.pcache = new Map<string | number, any>();
-        const sp = create_from_bundle(s, binsch, binsch.length);
+        s.tcache = new Map();
+        s.pcache = new Map();
+        const sp = createFromBundle(s as SprotoInstance, binsch, binsch.length);
         if (sp === null) return null;
 
-        function sproto_encode(st: SprotoType, buffer: number[], buffer_idx: number, cb: (args: SprotoArgs) => number, ud: any): number {
-            const args: SprotoArgs = {} as SprotoArgs;
-            const header_idx = buffer_idx;
-            let data_idx = buffer_idx;
-            const header_sz = CONSTANTS.SIZEOF_HEADER + st.maxn * CONSTANTS.SIZEOF_FIELD;
+        function sprotoEncode(st: SprotoType, buffer: number[], bufferIdx: number, cb: (args: SprotoArgs) => number, ud: SprotoUserData): number {
+            const args: SprotoArgs = {};
+            const headerIdx = bufferIdx;
+            let dataIdx = bufferIdx;
+            const headerSz = CONSTANTS.SIZEOF_HEADER + st.maxn * CONSTANTS.SIZEOF_FIELD;
             let index: number, lasttag: number, datasz: number;
 
             args.ud = ud;
-            data_idx = header_idx + header_sz;
+            dataIdx = headerIdx + headerSz;
             index = 0;
             lasttag = -1;
             for (let i = 0; i < st.n; i++) {
@@ -1288,20 +1323,19 @@ const sproto = ((): SprotoAPI => {
                 const type = f.type;
                 let value = 0;
                 let sz = -1;
-                args.tagname = f.name!;
+                args.tagname = f.name || undefined;
                 args.tagid = f.tag;
                 if (f.st !== null) {
-                    args.subtype = sp.type[f.st];
+                    args.subtype = sp.type?.[f.st] || null;
                 } else {
                     args.subtype = null;
                 }
 
                 args.mainindex = f.key;
                 args.extra = f.extra;
-                const type_ret = type & CONSTANTS.SPROTO_TARRAY;
                 if ((type & CONSTANTS.SPROTO_TARRAY) !== 0) {
                     args.type = type & ~CONSTANTS.SPROTO_TARRAY;
-                    sz = encode_array(cb, args, buffer, data_idx);
+                    sz = encodeArray(cb, args, buffer, dataIdx);
                 } else {
                     args.type = type;
                     args.index = 0;
@@ -1312,27 +1346,27 @@ const sproto = ((): SprotoAPI => {
                             args.value = 0;
                             args.length = 8;
                             args.buffer = buffer;
-                            args.buffer_idx = buffer_idx;
+                            args.buffer_idx = bufferIdx;
                             sz = cb(args);
                             if (sz < 0) {
                                 if (sz === CONSTANTS.SPROTO_CB_NIL)
                                     continue;
                                 if (sz === CONSTANTS.SPROTO_CB_NOARRAY)
-                                    return 0; // no array, don't encode it
-                                return -1; // sz == CONSTANTS.SPROTO_CB_ERROR
+                                    return 0;
+                                return -1;
                             }
                             if (sz === 4) {
                                 if (args.value < 0x7fff) {
                                     value = (args.value + 1) * 2;
                                     sz = 2;
                                 } else {
-                                    sz = encode_integer(args.value, buffer, data_idx, sz);
+                                    sz = encodeInteger(args.value, buffer, dataIdx, sz);
                                 }
                             } else if (sz === 8) {
                                 if (type === CONSTANTS.SPROTO_TDOUBLE) {
-                                    sz = double_to_binary(args.value, buffer, data_idx);
+                                    sz = doubleToBinary(args.value, buffer, dataIdx);
                                 } else {
-                                    sz = encode_uint64(args.value, buffer, data_idx, sz);
+                                    sz = encodeUint64(args.value, buffer, dataIdx, sz);
                                 }
                             } else {
                                 return -1;
@@ -1340,7 +1374,7 @@ const sproto = ((): SprotoAPI => {
                             break;
                         case CONSTANTS.SPROTO_TSTRUCT:
                         case CONSTANTS.SPROTO_TSTRING:
-                            sz = encode_object(cb, args, buffer, data_idx);
+                            sz = encodeObject(cb, args, buffer, dataIdx);
                             break;
                     }
                 }
@@ -1349,40 +1383,39 @@ const sproto = ((): SprotoAPI => {
                     return -1;
 
                 if (sz > 0) {
-                    let record_idx: number, tag: number;
+                    let recordIdx: number, tag: number;
                     if (value === 0) {
-                        data_idx += sz;
+                        dataIdx += sz;
                     }
-                    record_idx = header_idx + CONSTANTS.SIZEOF_HEADER + CONSTANTS.SIZEOF_FIELD * index;
+                    recordIdx = headerIdx + CONSTANTS.SIZEOF_HEADER + CONSTANTS.SIZEOF_FIELD * index;
                     tag = f.tag - lasttag - 1;
                     if (tag > 0) {
                         tag = (tag - 1) * 2 + 1;
                         if (tag > 0xffff)
                             return -1;
-                        buffer[record_idx] = tag & 0xff;
-                        buffer[record_idx + 1] = (tag >> 8) & 0xff;
+                        buffer[recordIdx] = tag & 0xff;
+                        buffer[recordIdx + 1] = (tag >> 8) & 0xff;
                         ++index;
-                        record_idx += CONSTANTS.SIZEOF_FIELD;
+                        recordIdx += CONSTANTS.SIZEOF_FIELD;
                     }
                     ++index;
-                    buffer[record_idx] = value & 0xff;
-                    buffer[record_idx + 1] = (value >> 8) & 0xff;
+                    buffer[recordIdx] = value & 0xff;
+                    buffer[recordIdx + 1] = (value >> 8) & 0xff;
                     lasttag = f.tag;
                 }
             }
 
-            buffer[header_idx] = index & 0xff;
-            buffer[header_idx + 1] = (index >> 8) & 0xff;
+            buffer[headerIdx] = index & 0xff;
+            buffer[headerIdx + 1] = (index >> 8) & 0xff;
 
-            datasz = data_idx - (header_idx + header_sz);
-            data_idx = header_idx + header_sz;
+            datasz = dataIdx - (headerIdx + headerSz);
+            dataIdx = headerIdx + headerSz;
             if (index !== st.maxn) {
-                const v = buffer.slice(data_idx, data_idx + datasz);
+                const v = buffer.slice(dataIdx, dataIdx + datasz);
                 for (let s = 0; s < v.length; s++) {
-                    buffer[header_idx + CONSTANTS.SIZEOF_HEADER + index * CONSTANTS.SIZEOF_FIELD + s] = v[s];
+                    buffer[headerIdx + CONSTANTS.SIZEOF_HEADER + index * CONSTANTS.SIZEOF_FIELD + s] = v[s];
                 }
-                const remove_size = buffer.length - (header_idx + CONSTANTS.SIZEOF_HEADER + index * CONSTANTS.SIZEOF_FIELD + v.length);
-                buffer.splice(header_idx + CONSTANTS.SIZEOF_HEADER + index * CONSTANTS.SIZEOF_FIELD + v.length, buffer.length);
+                buffer.splice(headerIdx + CONSTANTS.SIZEOF_HEADER + index * CONSTANTS.SIZEOF_FIELD + v.length, buffer.length);
             }
 
             return CONSTANTS.SIZEOF_HEADER + index * CONSTANTS.SIZEOF_FIELD + datasz;
@@ -1390,12 +1423,17 @@ const sproto = ((): SprotoAPI => {
 
         function encode(args: SprotoArgs): number {
             const self = args.ud;
-            if (self.deep >= CONSTANTS.ENCODE_DEEPLEVEL) {
+            if (!self) {
+                return CONSTANTS.SPROTO_CB_ERROR;
+            }
+            
+            const currentDeep = self.deep ?? 0;
+            if (currentDeep >= CONSTANTS.ENCODE_DEEPLEVEL) {
                 alert("table is too deep");
                 return -1;
             }
 
-            if (self.indata[args.tagname!] === null || self.indata[args.tagname!] === undefined) {
+            if (!self.indata || self.indata[args.tagname!] === null || self.indata[args.tagname!] === undefined) {
                 return CONSTANTS.SPROTO_CB_NIL;
             }
 
@@ -1404,7 +1442,6 @@ const sproto = ((): SprotoAPI => {
                 if (args.tagname !== self.array_tag) {
                     self.array_tag = args.tagname;
 
-                    const tagType = typeof (self.indata[args.tagname!]);
                     if (typeof (self.indata[args.tagname!]) !== "object") {
                         self.array_index = 0;
                         return CONSTANTS.SPROTO_CB_NIL;
@@ -1416,7 +1453,7 @@ const sproto = ((): SprotoAPI => {
                     }
                 }
                 target = self.indata[args.tagname!][args.index! - 1];
-                if (target === null) {
+                if (target === null || target === undefined) {
                     return CONSTANTS.SPROTO_CB_NIL;
                 }
             } else {
@@ -1459,7 +1496,7 @@ const sproto = ((): SprotoAPI => {
                 case CONSTANTS.SPROTO_TSTRING:
                     {
                         let arr: number[];
-                        if (args.extra) { //传数组进来
+                        if (args.extra) {
                             arr = target;
                         } else {
                             const str = target;
@@ -1479,9 +1516,9 @@ const sproto = ((): SprotoAPI => {
                     {
                         const sub: any = {};
                         sub.st = args.subtype;
-                        sub.deep = self.deep + 1;
+                        sub.deep = currentDeep + 1;
                         sub.indata = target;
-                        const r = sproto_encode(args.subtype!, args.buffer!, args.buffer_idx!, encode, sub);
+                        const r = sprotoEncode(args.subtype!, args.buffer!, args.buffer_idx!, encode, sub);
                         if (r < 0) {
                             return CONSTANTS.SPROTO_CB_ERROR;
                         }
@@ -1493,8 +1530,8 @@ const sproto = ((): SprotoAPI => {
             }
         }
 
-        function sproto_decode(st: SprotoType, data: number[], size: number, cb: (args: SprotoArgs) => number, ud: any): number {
-            const args: SprotoArgs = {} as SprotoArgs;
+        function sprotoDecode(st: SprotoType, data: number[], size: number, cb: (args: SprotoArgs) => number, ud: SprotoUserData): number {
+            const args: SprotoArgs = {};
             const total = size;
             let stream: number[], datastream: number[], fn: number, tag: number;
             if (size < CONSTANTS.SIZEOF_HEADER) return -1;
@@ -1532,11 +1569,11 @@ const sproto = ((): SprotoAPI => {
                     datastream = datastream.slice(sz + CONSTANTS.SIZEOF_LENGTH);
                     size -= sz + CONSTANTS.SIZEOF_LENGTH;
                 }
-                f = findtag(st, tag);
+                f = findTag(st, tag);
                 if (f === null) {
                     continue;
                 }
-                args.tagname = f.name!;
+                args.tagname = f.name;
                 args.tagid = f.tag;
                 args.type = f.type & ~CONSTANTS.SPROTO_TARRAY;
                 if (f.st !== null) {
@@ -1550,7 +1587,7 @@ const sproto = ((): SprotoAPI => {
                 args.extra = f.extra;
                 if (value < 0) {
                     if ((f.type & CONSTANTS.SPROTO_TARRAY) !== 0) {
-                        if (decode_array(cb, args, currentdata)) {
+                        if (decodeArray(cb, args, currentdata)) {
                             return -1;
                         }
                     } else {
@@ -1560,7 +1597,7 @@ const sproto = ((): SprotoAPI => {
                                     const sz = utils.toDword(currentdata);
                                     if (sz === 8) {
                                         const doubleBin = currentdata.slice(CONSTANTS.SIZEOF_LENGTH, CONSTANTS.SIZEOF_LENGTH + 8);
-                                        args.value = binary_to_double(doubleBin);
+                                        args.value = binaryToDouble(doubleBin);
                                         args.length = 8;
                                         cb(args);
                                     } else {
@@ -1624,7 +1661,7 @@ const sproto = ((): SprotoAPI => {
             if (args.index !== 0) {
                 if (args.tagname !== self.array_tag) {
                     self.array_tag = args.tagname;
-                    self.result[args.tagname!] = new Array<any>();
+                    self.result[args.tagname!] = [];
                     if (args.index! < 0) {
                         return 0;
                     }
@@ -1636,8 +1673,7 @@ const sproto = ((): SprotoAPI => {
                     {
                         if (args.extra) {
                             const v = args.value;
-                            const vn = v;
-                            value = vn / args.extra;
+                            value = v / args.extra;
                         } else {
                             value = args.value;
                         }
@@ -1661,7 +1697,7 @@ const sproto = ((): SprotoAPI => {
                     }
                 case CONSTANTS.SPROTO_TSTRING:
                     {
-                        const arr = new Array<number>();
+                        const arr: number[] = [];
                         for (let i = 0; i < args.length!; i++) {
                             arr.push(args.value[i]);
                         }
@@ -1670,7 +1706,6 @@ const sproto = ((): SprotoAPI => {
                         } else {
                             value = utils.utf82string(arr);
                         }
-
                         break;
                     }
                 case CONSTANTS.SPROTO_TSTRUCT:
@@ -1683,7 +1718,7 @@ const sproto = ((): SprotoAPI => {
                         sub.result = {};
                         if (args.mainindex! >= 0) {
                             sub.mainindex_tag = args.mainindex;
-                            r = sproto_decode(args.subtype!, args.value, args.length!, decode, sub);
+                            r = sprotoDecode(args.subtype!, args.value, args.length!, decode, sub);
                             if (r < 0 || r !== args.length) {
                                 return r;
                             }
@@ -1692,7 +1727,7 @@ const sproto = ((): SprotoAPI => {
                         } else {
                             sub.mainindex_tag = -1;
                             sub.key_index = 0;
-                            r = sproto_decode(args.subtype!, args.value, args.length!, decode, sub);
+                            r = sprotoDecode(args.subtype!, args.value, args.length!, decode, sub);
                             if (r < 0) {
                                 return CONSTANTS.SPROTO_CB_ERROR;
                             }
@@ -1715,11 +1750,11 @@ const sproto = ((): SprotoAPI => {
             return 0;
         }
 
-        function querytype(sp: any, typename: string): SprotoType | null {
+        function queryType(sp: SprotoInstance, typename: string): SprotoType | null {
             if (sp.tcache.has(typename)) {
                 return sp.tcache.get(typename);
             }
-            const typeinfo = sproto_type(sp, typename);
+            const typeinfo = sprotoType(sp, typename);
             if (typeinfo) {
                 sp.tcache.set(typename, typeinfo);
                 return typeinfo;
@@ -1727,24 +1762,24 @@ const sproto = ((): SprotoAPI => {
             return null;
         }
 
-        function protocol(sp: any, pname: string | number): any | null {
+        function protocol(sp: SprotoInstance, pname: string | number): SprotoProtocolInfo | null {
             let tag: number | null = null;
             let name: string | null = null;
 
             if (typeof (pname) === "number") {
                 tag = pname;
-                name = sproto_protoname(sp, pname);
+                name = sprotoProtoName(sp, pname);
                 if (!name)
                     return null;
             } else {
-                tag = sproto_prototag(sp, pname);
+                tag = sprotoProtoTag(sp, pname);
                 name = pname;
 
                 if (tag === -1) return null;
             }
 
-            const request = sproto_protoquery(sp, tag, CONSTANTS.SPROTO_REQUEST);
-            const response = sproto_protoquery(sp, tag, CONSTANTS.SPROTO_RESPONSE);
+            const request = sprotoProtoQuery(sp, tag, CONSTANTS.SPROTO_REQUEST);
+            const response = sprotoProtoQuery(sp, tag, CONSTANTS.SPROTO_RESPONSE);
             return {
                 tag: tag,
                 name: name,
@@ -1753,7 +1788,7 @@ const sproto = ((): SprotoAPI => {
             };
         }
 
-        function queryproto(sp: any, pname: string | number): any | null {
+        function queryProtoFunc(sp: SprotoInstance, pname: string | number): SprotoProtocolInfo | null {
             if (sp.pcache.has(pname)) {
                 return sp.pcache.get(pname);
             }
@@ -1767,16 +1802,16 @@ const sproto = ((): SprotoAPI => {
         }
 
         sp.queryproto = function (protocolName: string | number): any {
-            return queryproto(sp, protocolName);
+            return queryProtoFunc(sp, protocolName);
         };
         sp.dump = function (): void {
-            sproto_dump(this);
+            sprotoDump(this);
         };
 
         sp.objlen = function (type: string | number | SprotoType, inbuf: number[]): number | null {
             let st: SprotoType | null = null;
             if (typeof (type) === "string" || typeof (type) === "number") {
-                st = querytype(sp, type as string);
+                st = queryType(sp, type as string);
                 if (st === null) {
                     return null;
                 }
@@ -1788,7 +1823,7 @@ const sproto = ((): SprotoAPI => {
             ud.array_tag = null;
             ud.deep = 0;
             ud.result = {};
-            return sproto_decode(st, inbuf, inbuf.length, decode, ud);
+            return sprotoDecode(st, inbuf, inbuf.length, decode, ud);
         };
 
         sp.encode = function (type: string | number | SprotoType, indata: any): number[] | null {
@@ -1796,25 +1831,25 @@ const sproto = ((): SprotoAPI => {
 
             let st: SprotoType | null = null;
             if (typeof (type) === "string" || typeof (type) === "number") {
-                st = querytype(sp, type as string);
+                st = queryType(sp, type as string);
                 if (st === null)
                     return null;
             } else {
                 st = type;
             }
 
-            const tbl_index = 2;
-            const enbuffer = new Array<number>();
-            const buffer_idx = 0;
+            const tblIndex = 2;
+            enbuffer = [];
+            const bufferIdx = 0;
             self.st = st;
-            self.tbl_index = tbl_index;
+            self.tbl_index = tblIndex;
             self.indata = indata;
-            for (; ;) {
+            for (;;) {
                 self.array_tag = null;
                 self.array_index = 0;
                 self.deep = 0;
-                self.iter_index = tbl_index + 1;
-                const r = sproto_encode(st, enbuffer, buffer_idx, encode, self);
+                self.iter_index = tblIndex + 1;
+                const r = sprotoEncode(st, enbuffer, bufferIdx, encode, self);
                 if (r < 0) {
                     return null;
                 } else {
@@ -1823,10 +1858,10 @@ const sproto = ((): SprotoAPI => {
             }
         };
 
-        sp.decode = function (type: string | number | SprotoType, inbuf: number[]): any | null {
+        sp.decode = function (type: string | number | SprotoType, inbuf: number[]): any {
             let st: SprotoType | null = null;
             if (typeof (type) === "string" || typeof (type) === "number") {
-                st = querytype(sp, type as string);
+                st = queryType(sp, type as string);
                 if (st === null) {
                     return null;
                 }
@@ -1840,7 +1875,7 @@ const sproto = ((): SprotoAPI => {
             ud.array_tag = null;
             ud.deep = 0;
             ud.result = {};
-            const r = sproto_decode(st, buffer, sz, decode, ud);
+            const r = sprotoDecode(st, buffer, sz, decode, ud);
             if (r < 0) {
                 return null;
             }
@@ -1864,7 +1899,7 @@ const sproto = ((): SprotoAPI => {
             return sp.pack(obuf);
         };
 
-        sp.pdecode = function (type: string | number | SprotoType, inbuf: number[]): any | null {
+        sp.pdecode = function (type: string | number | SprotoType, inbuf: number[]): any {
             const obuf = sp.unpack(inbuf);
             if (obuf === null) {
                 return null;
@@ -1873,23 +1908,23 @@ const sproto = ((): SprotoAPI => {
         };
 
         sp.host = function (packagename?: string): any {
-            function cla(packagename?: string): void {
+            function cla(this: SprotoHost, packagename?: string): void {
                 const pkgName = packagename ? packagename : "package";
-                (this as any).proto = sp;
-                (this as any).package = querytype(sp, pkgName);
-                (this as any).package = (this as any).package ? (this as any).package : "package";
-                (this as any).session = {};
+                this.proto = sp!; // sp is guaranteed to be non-null at this point
+                const packageType = queryType(sp!, pkgName);
+                this.package = packageType ? packageType : pkgName;
+                this.session = {};
             }
             cla.prototype = host;
 
             return new (cla as any)(packagename);
         };
 
-        host.attach = function (sp: any): (name: string, args?: any, session?: any) => number[] {
+        host.attach = function (sp: SprotoInstance): (name: string, args: Record<string, unknown>, session: number) => number[] {
             this.attachsp = sp;
             const self = this;
-            return (name: string, args?: any, session?: any): number[] => {
-                const proto = queryproto(sp, name);
+            return (name: string, args: Record<string, unknown>, session: number): number[] => {
+                const proto = queryProtoFunc(sp, name);
 
                 headerTemp.type = proto.tag;
                 headerTemp.session = session;
@@ -1908,8 +1943,8 @@ const sproto = ((): SprotoAPI => {
             };
         };
 
-        function gen_response(self: any, response: SprotoType | null, session: any): (args?: any) => number[] {
-            return function (args?: any): number[] {
+        function genResponse(self: SprotoHost, response: SprotoType | null, session: number): (args: Record<string, unknown>) => number[] {
+            return function (args: Record<string, unknown>): number[] {
                 headerTemp.type = null;
                 headerTemp.session = session;
                 const headerbuffer = self.proto.encode(self.package, headerTemp);
@@ -1922,30 +1957,34 @@ const sproto = ((): SprotoAPI => {
             };
         }
 
-        host.dispatch = function (buffer: number[]): any {
+        host.dispatch = function (buffer: number[]): SprotoDispatchResult {
             const sp = this.proto;
             const bin = sp.unpack(buffer);
-            headerTemp.type = null;
-            headerTemp.session = null;
-            headerTemp = sp.decode(this.package, bin);
+            let headerData: Record<string, unknown> = {};
+            headerData.type = null;
+            headerData.session = null;
+            headerData = sp.decode(this.package, bin) || {};
 
-            const used_sz = sp.objlen(this.package, bin);
-            const leftbuffer = bin.slice(used_sz, bin.length);
-            if (headerTemp.type) {
-                const proto = queryproto(sp, headerTemp.type);
-
-                let result: any;
-                if (proto.request) {
-                    result = sp.decode(proto.request, leftbuffer);
+            const usedSz = sp.objlen(this.package, bin);
+            const leftbuffer = bin.slice(usedSz || 0, bin.length);
+            if (headerData.type) {
+                const proto = queryProtoFunc(sp, headerData.type as string | number);
+                if (!proto) {
+                    throw new Error('Protocol not found');
                 }
 
-                if (headerTemp.session) {
+                let result: Record<string, unknown> | undefined;
+                if (proto.request) {
+                    result = sp.decode(proto.request, leftbuffer) || undefined;
+                }
+
+                if (headerData.session && typeof headerData.session === 'number') {
                     return {
                         type: "REQUEST",
                         pname: proto.name,
                         result: result,
-                        responseFunc: gen_response(this, proto.response, headerTemp.session),
-                        session: headerTemp.session,
+                        responseFunc: genResponse(this, proto.response, headerData.session),
+                        session: headerData.session,
                     };
                 } else {
                     return {
@@ -1955,8 +1994,8 @@ const sproto = ((): SprotoAPI => {
                     };
                 }
             } else {
-                const attachSp = this.attachsp;
-                const session = headerTemp.session;
+                const attachedSp = this.attachsp;
+                const session = headerData.session as number;
                 const response = this.session[session];
                 delete this.session[session];
 
@@ -1966,7 +2005,7 @@ const sproto = ((): SprotoAPI => {
                         session: session,
                     };
                 } else {
-                    const result = attachSp.decode(response, leftbuffer);
+                    const result = attachedSp?.decode(response as SprotoType, leftbuffer) || undefined;
                     return {
                         type: "RESPONSE",
                         session: session,
