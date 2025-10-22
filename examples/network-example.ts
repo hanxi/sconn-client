@@ -9,7 +9,7 @@ import { Network } from '../src/network';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
-async function jwtSign(payload, secret, alg = "HS256", expiresInSec = 60) {
+async function jwtSign(payload: any, secret: string, alg: string = "HS256", expiresInSec: number = 60) {
   // 1. 设置 JWT header
   const header = {
     alg,
