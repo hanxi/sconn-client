@@ -786,7 +786,7 @@ const sproto = (() => {
                             buffer[header_idx + j] = buffer[header_idx + j - i * 4];
                         }
                         negative = buffer[header_idx + 1 + i * 8 + 3] & 0x80;
-                        uint32_to_uint64(negative, buffer, buffer_idx + 1 + i * 8);
+                        uint32_to_uint64(negative, buffer, header_idx + 1 + i * 8);
                     }
                     intlen = 8;
                 }
