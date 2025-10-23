@@ -1,6 +1,6 @@
 {
   "name": "sconn-client",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "SConn WebSocket client library with state machine, reconnection and data caching",
   "main": "dist/index.js",
   "module": "dist/index.js",
@@ -36,6 +36,8 @@
     "websocket",
     "client",
     "browser",
+    "sproto",
+    "goscon",
     "typescript"
   ],
   "author": "涵曦",
