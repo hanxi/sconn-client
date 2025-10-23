@@ -8,6 +8,7 @@
 import { Network } from '../src/network';
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { CryptUtils } from '../src/crypto';
 
 async function jwtSign(payload: any, secret: string, alg: string = "HS256", expiresInSec: number = 60) {
   // 1. 设置 JWT header
@@ -60,6 +61,7 @@ class NetworkExample {
   private network: Network | null = null;
   private isRunning = false;
   private updateInterval: NodeJS.Timeout | null = null;
+  private checksum: string | null = null;
 
   /**
    * 初始化Network实例
@@ -68,8 +70,11 @@ class NetworkExample {
     try {
       // 创建协议缓冲区
       const protocolBuffer = this.createProtocolBuffer();
+      const hashBytes = CryptUtils.md5(protocolBuffer);
+      this.checksum = Array.from(hashBytes, byte => byte.toString(16).padStart(2, '0')).join('');
+      console.log('协议校验码:', this.checksum);
 
-      this.network = new Network(protocolBuffer);
+      this.network = new Network(Array.from(protocolBuffer));
 
       // 注册消息处理器
       this.registerHandlers();
@@ -85,11 +90,11 @@ class NetworkExample {
    * 创建协议缓冲区
    * 从.sproto文件读取并编译生成二进制数据
    */
-  private createProtocolBuffer(): number[] {
+  private createProtocolBuffer(): Uint8Array {
     // 尝试读取协议文件
     const protocolPath = join(__dirname, 'sproto.spb');
     const protocolData = readFileSync(protocolPath);
-    return Array.from(protocolData);
+    return new Uint8Array(protocolData);
   }
 
   /**
@@ -177,12 +182,14 @@ class NetworkExample {
     try {
       const ctx = {
         rid: 0,
-        proto_checksum: "unknow"
+        proto_checksum: this.checksum,
       };
-      const response = await this.network.invoke('login.login', {
+      const data = {
         token,
         ctx,
-      });
+      };
+      console.log("开始登录", data);
+      const response = await this.network.call('login.login', data);
 
       return response;
     } catch (error) {
@@ -250,6 +257,7 @@ async function runExample() {
         account: "robot3"
       }
       const token = await jwtSign(data, secret, "HS512", 60);
+      
       const loginResult = await client.login(token);
       console.log('登录成功:', loginResult);
     } catch (error) {

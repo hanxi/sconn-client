@@ -7,6 +7,40 @@
  * - 大端/小端字节序支持
  */
 
+function hexdump(buffer: ArrayBuffer) {
+    const bytes = new Uint8Array(buffer);
+    let hex = '';
+    let ascii = '';
+    
+    for (let i = 0; i < bytes.length; i++) {
+        // 每16字节换行
+        if (i % 16 === 0) {
+            if (i !== 0) {
+                hex += ' ' + ascii + '\n';
+                ascii = '';
+            }
+            // 打印偏移地址
+            hex += i.toString(16).padStart(8, '0') + ': ';
+        }
+        
+        // 转换为16进制
+        hex += bytes[i].toString(16).padStart(2, '0') + ' ';
+        
+        // 生成ASCII部分
+        ascii += (bytes[i] >= 32 && bytes[i] <= 126) ? 
+                 String.fromCharCode(bytes[i]) : '.';
+    }
+    
+    // 处理最后一行
+    while (ascii.length < 16) {
+        hex += '   ';
+        ascii += ' ';
+    }
+    hex += ' ' + ascii;
+    
+    return hex;
+}
+
 export const endianFormat = {
   "little": "<",
   "big": ">"
@@ -22,7 +56,10 @@ export class Buffer {
    * 添加数据到缓冲区
    * @param arr 要添加的字节数组
    */
-  push(arr: Uint8Array): void {
+  push(arr: Uint8Array|ArrayBuffer): void {
+    if (arr instanceof ArrayBuffer) {
+      arr = new Uint8Array(arr);
+    }
     this.data.push(arr);
   }
 
@@ -33,6 +70,8 @@ export class Buffer {
   popAll(): Uint8Array {
     // 计算总长度
     const totalLength = this.getSize();
+    if (totalLength === 0) return new Uint8Array(0);
+
     const result = new Uint8Array(totalLength);
     let offset = 0;
     // 合并所有数组
@@ -41,6 +80,10 @@ export class Buffer {
       offset += arr.length;
     }
     this.data = [];
+
+  console.log("popAll", result.length);
+  console.log(hexdump(result.buffer));
+    
     return result;
   }
 

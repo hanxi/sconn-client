@@ -4,7 +4,7 @@
     "": {
       "name": "sconn-client",
       "dependencies": {
-        "@imhanxi/sproto-js": "^0.1.1",
+        "@imhanxi/sproto-js": "^0.1.4",
         "@types/buffers": "^0.1.34",
         "ws": "^8.14.2",
       },
@@ -101,7 +101,7 @@
 
     "@csstools/css-tokenizer": ["@csstools/css-tokenizer@3.0.4", "", {}, "sha512-Vd/9EVDiu6PPJt9yAh6roZP6El1xHrdvIVGjyBsHR0RYwNHgL7FJPyIIW4fANJNG6FtyZfvlRPpFI4ZM/lubvw=="],
 
-    "@imhanxi/sproto-js": ["@imhanxi/sproto-js@0.1.1", "", {}, "sha512-dSc318izZ7KGzO0JiNp2zvm+QUKxW+wsHd2Lwkym8ag+2h/wLhkh4jKmMApCSBAnCo/fcAfjXvC1wQhfXLy2zg=="],
+    "@imhanxi/sproto-js": ["@imhanxi/sproto-js@0.1.4", "", {}, "sha512-iigv76VGGE9SHGrUg+mcYAuyXRZf9lQprcWHRpY4tceQoKnm26iUIb32hwijI/7qBhIeLNtDaT5mpV4WMBioOA=="],
 
     "@istanbuljs/load-nyc-config": ["@istanbuljs/load-nyc-config@1.1.0", "", { "dependencies": { "camelcase": "^5.3.1", "find-up": "^4.1.0", "get-package-type": "^0.1.0", "js-yaml": "^3.13.1", "resolve-from": "^5.0.0" } }, "sha512-VjeHSlIzpv/NyD3N0YuHfXOPDIixcA1q2ZV98wsMqcYlPmv2n3Yb2lYP9XMElnaFVXg5A7YLTeLu6V84uQDjmQ=="],
 

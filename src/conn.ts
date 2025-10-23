@@ -107,6 +107,7 @@ class WSConnection {
     };
 
     this.websocket.onmessage = (event) => {
+      console.log("websocket recv message", event.data);
       this.vRecvBuf.push(event.data);
     };
 
@@ -129,7 +130,7 @@ export interface IWSConnection {
   setBinaryType(type: BinaryType): void ;
   send(data: Uint8Array): void;
   popMsg(headerLen?: number, endian?: string): Uint8Array | null;
-  recv(out: Uint8Array[]): number;
+  recv(): Uint8Array;
   update(): ConnectionUpdateResult;
   newConnect(url: string): NewConnectionResult;
   close(): void;
@@ -179,18 +180,9 @@ class ExtendedWSConnection extends WSConnection implements IWSConnection {
     return result;
   }
 
-  /**
-   * 接收数据到数组
-   * @param out 输出数组
-   * @returns 接收到的数据块数量
-   */
-  recv(out: Uint8Array[]): number {
-    const data = this.vRecvBuf.popAll();
-    if (data.length>0) {
-      out.push(data);
-      return 1;
-    }
-    return 0;
+
+  recv(): Uint8Array {
+    return this.vRecvBuf.popAll();
   }
 
   /**

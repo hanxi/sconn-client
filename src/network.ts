@@ -10,7 +10,8 @@
  * TypeScript版本，移植自network.lua
  */
 
-import sproto from './sproto/sproto';
+// import sproto from '@imhanxi/sproto-js';
+import sproto from "./sproto";
 import { SConn, connect } from './sconn';
 
 /**
@@ -58,7 +59,6 @@ export class Network {
   private sessionIndex: number = 0;
   private requestSession: Map<number, SessionItem> = new Map();
   private responseHandle: Map<string, ResponseHandler> = new Map();
-  private outputBuffer: any[] = [];
   private connection: SConn | null = null;
 
   private sp: any = null;
@@ -140,15 +140,15 @@ export class Network {
    * 根据消息类型（REQUEST/RESPONSE）进行相应处理
    * @param response 接收到的消息数据
    */
-  private dispatch(response: number[]): void {
+  private dispatch(response: Uint8Array): void {
     if (!this.client) {
       throw new Error('Client not initialized');
     }
 
     try {
       // 使用sproto客户端分发消息
-      const dispatchResult = this.client.dispatch(response);
-
+      const responseArray = Array.from(response);
+      const dispatchResult = this.client.dispatch(responseArray);
       if (!dispatchResult) {
         console.warn('Dispatch returned null or undefined');
         return;
@@ -202,16 +202,14 @@ export class Network {
 
       if (updateResult.success) {
         // 清空消息缓冲区
-        this.outputBuffer.length = 0;
+        let outputBuffer: Uint8Array[] = [];
 
         // 接收并处理消息
-        const count = this.connection.recvMsg(this.outputBuffer);
+        const count = this.connection.recvMsg(outputBuffer);
 
         for (let i = 0; i < count; i++) {
-          const response = this.outputBuffer[i];
-          // 将消息转换为数字数组格式供sproto处理
-          const responseArray = this.stringToNumberArray(response);
-          this.dispatch(responseArray);
+          const response = outputBuffer[i];
+          this.dispatch(response);
         }
       }
 
@@ -309,25 +307,6 @@ export class Network {
     this.responseHandle.set(name, callback);
   }
 
-  /**
-   * 工具方法：字符串转数字数组
-   * @param str 要转换的字符串
-   * @returns 转换后的数字数组
-   */
-  private stringToNumberArray(str: string): number[] {
-    const encoder = new TextEncoder();
-    return Array.from(encoder.encode(str));
-  }
-
-  /**
-   * 工具方法：数字数组转字符串
-   * @param arr 要转换的数字数组
-   * @returns 转换后的字符串
-   */
-  private numberArrayToString(arr: number[]): string {
-    const decoder = new TextDecoder();
-    return decoder.decode(new Uint8Array(arr));
-  }
 
   /**
    * 获取连接状态
