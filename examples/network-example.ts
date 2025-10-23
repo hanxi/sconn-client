@@ -8,7 +8,7 @@
 import { Network } from '../src/network';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { CryptUtils } from '../src/crypto';
+
 
 async function jwtSign(payload: any, secret: string, alg: string = "HS256", expiresInSec: number = 60) {
   // 1. 设置 JWT header
@@ -70,11 +70,9 @@ class NetworkExample {
     try {
       // 创建协议缓冲区
       const protocolBuffer = this.createProtocolBuffer();
-      const hashBytes = CryptUtils.md5(protocolBuffer);
-      this.checksum = Array.from(hashBytes, byte => byte.toString(16).padStart(2, '0')).join('');
+      this.network = new Network(protocolBuffer);
+      this.checksum = this.network.checksumValue();
       console.log('协议校验码:', this.checksum);
-
-      this.network = new Network(Array.from(protocolBuffer));
 
       // 注册消息处理器
       this.registerHandlers();

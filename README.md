@@ -1,6 +1,6 @@
 # SConn Client
 
-一个基于状态机的 TypeScript WebSocket 客户端库，支持自动重连和数据缓存功能。该库为浏览器环境提供了强大的 WebSocket 连接管理解决方案。
+一个基于状态机的 TypeScript WebSocket 客户端库，支持自动重连和数据缓存功能。该库为浏览器环境提供了强大的 WebSocket 连接管理解决方案。是 [goscon](https://github.com/hanxi/goscon) 的客户端实现。
 
 ## 特性
 
@@ -11,9 +11,22 @@
 - 🎯 **状态机**: 清晰的基于状态的连接管理
 - 🌐 **浏览器兼容**: 专为现代浏览器环境设计
 - 📝 **TypeScript**: 完整的 TypeScript 支持和类型定义
+- 🚀 **Sproto 协议**: 基于 sproto 协议的高效消息编解码
 - ✅ **完善测试**: 使用 Jest 的全面测试套件
 
 ## 安装
+
+```bash
+npm install sconn-client
+```
+
+或使用 yarn:
+
+```bash
+yarn add sconn-client
+```
+
+或使用 bun:
 
 ```bash
 bun add sconn-client
@@ -21,148 +34,174 @@ bun add sconn-client
 
 ## 快速开始
 
-### 基础 WebSocket 连接
+### 基本使用
 
 ```typescript
-import { connect } from 'sconn-client';
+import { Network } from 'sconn-client';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 
-// 创建基础 WebSocket 连接
-const result = connect('ws://localhost:8080');
-if (result.connection) {
-  const conn = result.connection;
-  
-  // 发送数据
-  conn.send('Hello World');
-  
-  // 接收数据
-  const messages: string[] = [];
-  const count = conn.recv(messages);
-  console.log('接收到的消息:', messages);
+// 创建协议缓冲区（从 .sproto 文件编译生成的二进制数据）
+const protocolPath = join(__dirname, 'sproto.spb');
+const protocolData = readFileSync(protocolPath);
+const protocolBuffer = new Uint8Array(protocolData);
+
+// 创建 Network 实例
+const network = new Network(protocolBuffer);
+
+// 获取协议校验码
+const checksum = network.checksumValue();
+console.log('协议校验码:', checksum);
+
+// 连接到服务器
+const connectResult = network.connect('ws://localhost:1249', 'game1');
+if (!connectResult.success) {
+  console.error('连接失败:', connectResult.error);
+  return;
 }
-```
 
-### 带状态管理的 SConn
+// 注册消息处理器
+network.register('login.login', (request) => {
+  console.log('处理登录请求:', request);
+  return {
+    success: true,
+    userId: 12345,
+    username: request.username,
+    token: 'mock_token_' + Date.now()
+  };
+});
 
-```typescript
-import { connect } from 'sconn-client';
+// 启动网络更新循环
+const updateInterval = setInterval(() => {
+  const updateResult = network.update();
+  if (!updateResult.success) {
+    console.error('网络更新错误:', updateResult.error);
+    if (updateResult.status === 'connect_break') {
+      console.log('连接断开，尝试重连...');
+      // 处理重连逻辑
+    }
+  }
+}, 50); // 每50ms更新一次
 
-// 创建带状态管理的 SConn 连接
-const result = connect('ws://localhost:8080', 'target-server', 0);
-if (result.connection) {
-  const sconn = result.connection;
-  
-  // 发送带自动打包的消息
-  sconn.sendMsg('Hello SConn');
-  
-  // 处理连接状态
-  const state = sconn.curState();
-  console.log('当前状态:', state);
-  
-  // 自动重连
-  sconn.reconnect((success) => {
-    console.log('重连结果:', success);
-  });
+// 发送登录请求
+try {
+  const ctx = {
+    rid: 0,
+    proto_checksum: checksum,
+  };
+  const loginData = {
+    token: 'your_jwt_token_here',
+    ctx,
+  };
+  const response = await network.call('login.login', loginData);
+  console.log('登录成功:', response);
+} catch (error) {
+  console.error('登录失败:', error);
 }
 ```
 
 ## API 参考
 
-### 连接管理
+### Network 类
 
-#### `connect(url: string): ConnectResult`
+主要的网络通信管理器，提供高级 API 用于 WebSocket 连接管理和消息处理。
 
-创建基础 WebSocket 连接。
-
-- `url`: WebSocket 服务器 URL
-- 返回: `{ connection: IWSConnection | null, error?: string }`
-
-#### `connect(url: string, targetServer?: string, flag?: number): ConnectResult`
-
-创建具有高级功能的 SConn 连接。
-
-- `url`: WebSocket 服务器 URL
-- `targetServer`: 目标服务器标识符（可选）
-- `flag`: 连接标志（可选）
-- 返回: `{ connection: SConn | null, error?: string }`
-
-### SConn 类方法
-
-#### 状态管理
-
-- `curState(): string` - 获取当前连接状态
-- `update(): StateDisposeResult` - 更新连接状态
-- `close(): void` - 关闭连接
-
-#### 数据传输
-
-- `send(data: string): boolean` - 发送原始数据
-- `sendMsg(data: string, headerLen?: number, endian?: string): boolean` - 发送带包头的消息
-- `recv(out: string[]): number` - 接收原始数据
-- `recvMsg(outMsg: string[], headerLen?: number, endian?: string): number` - 接收消息
-
-#### 重连
-
-- `reconnect(cb?: (success: boolean) => void): ReconnectResult` - 启动重连
-
-### 加密功能
-
-该库包含内置的加密功能：
-
-- **DH 密钥交换**: 符合 RFC 3526 的 2048 位 MODP 群
-- **HMAC-MD5**: 消息认证和完整性验证
-- **自动密钥管理**: 连接建立期间的无缝密钥交换
-
-## 连接状态
-
-SConn 使用状态机，包含以下状态：
-
-- `newconnect` - 初始连接建立
-- `forward` - 正常数据转发
-- `reconnect` - 重连进行中
-- `reconnect_error` - 重连失败
-- `reconnect_match_error` - 数据同步错误
-- `reconnect_cache_error` - 缓存不足无法恢复
-- `close` - 连接已关闭
-
-## 配置
-
-### 消息格式
-
-默认情况下，消息使用：
-- 包头长度: 2 字节
-- 字节序: 小端序
-
-您可以自定义这些设置：
+#### 构造函数
 
 ```typescript
-sconn.sendMsg('data', 4, 'big'); // 4 字节包头，大端序
+constructor(protocolBuffer: number[], packageName?: string)
 ```
 
-### 缓存
+- `protocolBuffer`: 协议二进制数据数组
+- `packageName`: 协议包名，默认为 "base.package"
 
-库会自动缓存发送的数据以供重连恢复：
-- 最大缓存条目: 100
-- 自动清理旧条目
-- 高效的数据检索用于重传
+#### 主要方法
 
-## 测试
+##### connect(url: string, targetServer: string): ConnectionResult
 
-运行测试套件：
+连接到 WebSocket 服务器。
 
-```bash
-bun test
+```typescript
+const result = network.connect('ws://localhost:8080', 'game1');
+if (result.success) {
+  console.log('连接成功');
+} else {
+  console.error('连接失败:', result.error);
+}
 ```
 
-运行带覆盖率的测试：
+##### register(name: string, handler: ResponseHandler): void
 
-```bash
-bun run test:coverage
+注册消息处理器。
+
+```typescript
+network.register('chat.message', (message) => {
+  console.log('收到聊天消息:', message);
+  return { received: true };
+});
 ```
 
-监视模式运行测试：
+##### call(name: string, data: any): Promise<any>
 
-```bash
-bun run test:watch
+发送请求并等待响应。
+
+```typescript
+try {
+  const response = await network.call('user.info', { userId: 123 });
+  console.log('用户信息:', response);
+} catch (error) {
+  console.error('请求失败:', error);
+}
+```
+
+##### update(): UpdateResult
+
+更新网络连接状态，处理接收到的消息。
+
+```typescript
+const result = network.update();
+if (!result.success) {
+  console.error('更新失败:', result.error);
+  if (result.status === 'connect_break') {
+    // 处理连接断开
+  }
+}
+```
+
+##### close(): void
+
+关闭网络连接。
+
+```typescript
+network.close();
+```
+
+##### isConnected(): boolean
+
+检查连接状态。
+
+```typescript
+if (network.isConnected()) {
+  console.log('连接正常');
+}
+```
+
+##### checksumValue(): string
+
+获取协议校验码，用于验证客户端和服务器使用的协议版本一致性。
+
+```typescript
+const checksum = network.checksumValue();
+console.log('协议校验码:', checksum);
+
+// 在登录时使用校验码
+const loginData = {
+  token: 'your_jwt_token',
+  ctx: {
+    rid: 0,
+    proto_checksum: checksum
+  }
+};
 ```
 
 ## 示例
@@ -170,28 +209,33 @@ bun run test:watch
 查看 `examples/` 目录获取完整的使用示例：
 
 ```bash
-bun run example:conn    # 基础连接示例
-bun run example:sconn   # 带状态管理的 SConn 示例
+# 运行网络示例
+bun run example:network
 ```
 
-## 开发
+## 协议支持
 
-### 构建
+本库基于 [sproto](https://github.com/cloudwu/sproto) 协议，需要使用 [sprotodump](https://github.com/lvzixun/sprotodump) 预先编译协议文件为二进制格式。
 
-```bash
-bun run build
-```
+### 协议文件示例
 
-### 类型检查
+```sproto
+.package {
+  type 0 : integer
+  session 1 : integer
+}
 
-```bash
-bun run type-check
-```
-
-### 开发服务器
-
-```bash
-bun run server:dev
+login {
+  request {
+    token 0 : string
+    ctx 1 : *package
+  }
+  response {
+    success 0 : boolean
+    userId 1 : integer
+    username 2 : string
+  }
+}
 ```
 
 ## 相关项目
@@ -200,17 +244,8 @@ bun run server:dev
 
 - [sconn_client](https://github.com/lvzixun/sconn_client) - 原始 C 语言实现
 - [goscon](https://github.com/hanxi/goscon) - Go 语言服务器实现
-
-## 浏览器兼容性
-
-- Chrome/Edge 88+
-- Firefox 78+
-- Safari 14+
-
-需要支持：
-- WebSocket API
-- Web Crypto API（用于 DH 密钥交换）
-- BigInt（用于加密操作）
+- [sproto](https://github.com/cloudwu/sproto) - 协议定义和编解码库
+- [sprotodump](https://github.com/lvzixun/sprotodump) - 协议编译工具
 
 ## 许可证
 
@@ -224,13 +259,10 @@ MIT 许可证 - 详见 [LICENSE](LICENSE) 文件。
 4. 推送到分支 (`git push origin feature/amazing-feature`)
 5. 打开一个 Pull Request
 
-## 更新日志
+## 支持
 
-### v1.0.0
-- 初始发布
-- DH 密钥交换实现
-- HMAC-MD5 认证
-- 自动重连
-- 数据缓存和恢复
-- TypeScript 支持
-- 全面的测试套件
+如果您在使用过程中遇到问题，请：
+
+1. 查看 [示例代码](examples/)
+2. 检查 [API 文档](#api-参考)
+3. 提交 [Issue](https://github.com/hanxi/sconn-client.ts/issues)

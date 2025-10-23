@@ -12,6 +12,7 @@
 
 import sproto from '@imhanxi/sproto-js';
 import { SConn, connect } from './sconn';
+import { CryptUtils } from './crypto';
 
 /**
  * 会话项接口
@@ -63,14 +64,21 @@ export class Network {
   private sp: any = null;
   private client: any = null;
   private clientRequest: ((name: string, args?: any, session?: number) => Uint8Array) | null = null;
+  private checksum: string = "";
 
   /**
    * 创建新的 Network 实例
    * @param protocolBuffer 协议二进制数据
    * @param packageName 包名，默认为 "base.package"
    */
-  constructor(protocolBuffer: number[], packageName: string = "base.package") {
-    this.initialize(protocolBuffer, packageName);
+  constructor(protocolBuffer: Uint8Array, packageName: string = "base.package") {
+    this.initialize(Array.from(protocolBuffer), packageName);
+    const hashBytes = CryptUtils.md5(protocolBuffer);
+    this.checksum = Array.from(hashBytes, byte => byte.toString(16).padStart(2, '0')).join('');
+  }
+
+  public checksumValue(): string {
+    return this.checksum;
   }
 
   /**
