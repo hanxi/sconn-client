@@ -26,7 +26,7 @@
   "author": "涵曦",
   "license": "MIT",
   "dependencies": {
-    "@imhanxi/sproto-js": "^0.1.4",
+    "@imhanxi/sproto-js": "^0.1.5",
     "@types/buffers": "^0.1.34",
     "ws": "^8.14.2"
   },

@@ -10,8 +10,7 @@
  * TypeScript版本，移植自network.lua
  */
 
-// import sproto from '@imhanxi/sproto-js';
-import sproto from "./sproto";
+import sproto from '@imhanxi/sproto-js';
 import { SConn, connect } from './sconn';
 
 /**
@@ -148,6 +147,7 @@ export class Network {
     try {
       // 使用sproto客户端分发消息
       const responseArray = Array.from(response);
+      console.log("responseArray", responseArray);
       const dispatchResult = this.client.dispatch(responseArray);
       if (!dispatchResult) {
         console.warn('Dispatch returned null or undefined');
