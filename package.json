@@ -20,7 +20,7 @@
   "homepage": "https://github.com/hanxi/sconn-client.ts#readme",
   "scripts": {
     "build": "tsc && bun build src/index.ts --outdir dist --target browser --format esm --sourcemap",
-    "prepublishOnly": "npm run build",
+    "prepublishOnly": "bun run build",
     "dev": "bun --watch src/index.ts",
     "type-check": "bun tsc --noEmit",
     "test": "jest",
