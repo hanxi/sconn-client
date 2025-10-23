@@ -1,6 +1,6 @@
 {
   "name": "sconn-client",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "SConn WebSocket client library with state machine, reconnection and data caching",
   "main": "dist/index.js",
   "module": "dist/index.js",
@@ -12,12 +12,12 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/hanxi/sconn-client.ts.git"
+    "url": "https://github.com/hanxi/sconn-client.git"
   },
   "bugs": {
-    "url": "https://github.com/hanxi/sconn-client.ts/issues"
+    "url": "https://github.com/hanxi/sconn-client/issues"
   },
-  "homepage": "https://github.com/hanxi/sconn-client.ts#readme",
+  "homepage": "https://github.com/hanxi/sconn-client#readme",
   "scripts": {
     "build": "tsc && bun build src/index.ts --outdir dist --target browser --format esm --sourcemap",
     "prepublishOnly": "bun run build",
