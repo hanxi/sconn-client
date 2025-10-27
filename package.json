@@ -1,6 +1,6 @@
 {
   "name": "sconn-client",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "SConn WebSocket client library with state machine, reconnection and data caching",
   "main": "dist/index.js",
   "module": "dist/index.js",
@@ -43,7 +43,7 @@
   "author": "涵曦",
   "license": "MIT",
   "dependencies": {
-    "@imhanxi/sproto-js": "^0.1.6",
+    "@imhanxi/sproto-js": "^0.1.7",
     "ws": "^8.14.2"
   },
   "devDependencies": {
