@@ -192,7 +192,7 @@ fi
 
 # 添加更改到 git
 print_info "添加更改到 git..."
-git add package.json dist/
+git add package.json
 
 # 检查是否有其他需要提交的文件
 if [ -n "$(git diff --cached --name-only)" ]; then

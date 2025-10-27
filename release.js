@@ -252,7 +252,7 @@ async function main() {
 
         // 添加更改到 git
         printInfo('添加更改到 git...');
-        execCommand('git add package.json dist/');
+        execCommand('git add package.json');
 
         // 检查是否有文件需要提交
         const diffResult = execCommand('git diff --cached --name-only', { silent: true });
