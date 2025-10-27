@@ -30,7 +30,10 @@
     "server:dev": "bun --watch test-server.ts",
     "example:conn": "bun run examples/conn-example.ts",
     "example:sconn": "bun run examples/sconn-example.ts",
-    "example:network": "bun run examples/network-example.ts"
+    "example:network": "bun run examples/network-example.ts",
+    "release:patch": "bun release.js patch",
+    "release:minor": "bun release.js minor",
+    "release:major": "bun release.js major"
   },
   "keywords": [
     "websocket",
