@@ -106,9 +106,25 @@ class WSConnection {
       this.log("websocket connect succeed");
     };
 
-    this.websocket.onmessage = (event) => {
+    this.websocket.onmessage = async (event) => {
       console.log("websocket recv message", event.data);
-      this.vRecvBuf.push(event.data);
+      
+      let data: ArrayBuffer;
+      
+      // 处理不同环境下的数据类型
+      if (event.data instanceof ArrayBuffer) {
+        // Node.js 环境，直接使用
+        data = event.data;
+      } else if (event.data instanceof Blob) {
+        // 浏览器环境，将 Blob 转换为 ArrayBuffer
+        data = await event.data.arrayBuffer();
+      } else {
+        // 其他类型（如字符串），直接传递给 Buffer 处理
+        this.vRecvBuf.push(event.data);
+        return;
+      }
+      
+      this.vRecvBuf.push(data);
     };
 
     this.websocket.onclose = (event) => {
