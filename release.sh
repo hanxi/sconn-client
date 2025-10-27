@@ -89,7 +89,7 @@ fi
 
 # 拉取最新代码
 print_info "拉取最新代码..."
-git pull origin $CURRENT_BRANCH
+git pull --no-rebase origin $CURRENT_BRANCH
 
 # 获取当前版本
 CURRENT_VERSION=$(bun -p "require('./package.json').version")

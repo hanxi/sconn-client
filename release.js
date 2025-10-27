@@ -185,7 +185,7 @@ async function main() {
 
         // 拉取最新代码
         printInfo('拉取最新代码...');
-        const pullResult = execCommand(`git pull origin ${currentBranch}`);
+        const pullResult = execCommand(`git pull --no-rebase origin ${currentBranch}`);
         if (!pullResult.success) {
             printError('拉取代码失败');
             process.exit(1);
