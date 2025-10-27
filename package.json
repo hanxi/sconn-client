@@ -1,6 +1,6 @@
 {
   "name": "sconn-client",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "SConn WebSocket client library with state machine, reconnection and data caching",
   "main": "dist/index.js",
   "module": "dist/index.js",
