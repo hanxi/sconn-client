@@ -11,6 +11,7 @@
  */
 
 import sproto from '@imhanxi/sproto-js';
+// import sproto from '../../sproto-js/src/sproto';
 import { SConn, connect } from './sconn';
 import { CryptUtils } from './crypto';
 
