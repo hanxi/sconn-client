@@ -260,10 +260,10 @@ export class Network {
   /**
    * 发送请求并等待响应
    * @param name 协议名称
-   * @param data 请求数据
+   * @param data 请求数据（可选）
    * @returns Promise<any>
    */
-  public call(name: string, data: any): Promise<any> {
+  public call(name: string, data?: any): Promise<any> {
     const sessionIndex = this.sessionIndex;
     this.sessionIndex = sessionIndex + 1;
 
@@ -292,10 +292,10 @@ export class Network {
   /**
    * 发送请求并立即返回
    * @param name 协议名称
-   * @param data 请求数据
+   * @param data 请求数据（可选）
    * @returns 是否发送成功
    */
-  public invoke(name: string, data: any): boolean {
+  public invoke(name: string, data?: any): boolean {
     return this.request(name, data);
   }
 
